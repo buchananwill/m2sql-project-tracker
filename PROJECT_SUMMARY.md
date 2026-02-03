@@ -56,22 +56,107 @@ When rendering from database to markdown, row order is derived from relationship
 
 Cross-branch dependencies do not reorder entire subtrees; they are documented in the relationship section only.
 
+## Quick Reference
+
+### Example
+
+See `examples/piste_perfect_project_tracker.md` for a full real-world example — a project tracker for a skiing game with ~40 tasks, `part_of` hierarchy, `depends_on` chains, and multiple table schemas including junction tables.
+
+### Parsing Rules
+
+1. H1 headings are only treated as databases if they contain the `@database` tag. H1 headings without it are silently ignored, allowing document-level notes and rules above the data.
+2. Heading syntax is parsed right-to-left: `### Name \`PK: 42\` {#anchor}`. The anchor is extracted first, then the PK, then the remaining text is the name. Order matters.
+3. Anchors are auto-slugified from heading text (e.g., `Early Access Release` becomes `early-access-release`) unless an explicit `{#anchor}` is provided.
+4. Column values under `#### Columns` are indented plain text in `key: value` format. Quoted string values have quotes stripped. Unquoted numeric values are parsed as numbers.
+5. Relationships are structured as `#### Relationships` > `##### Type Name` > bullet list with markdown links. The link target `(#anchor)` resolves to the referenced row.
+6. Junction tables are inferred by naming convention: a relationship type "Part Of" on a `task` table looks for `task_part_of`, then `part_of`. The FK columns are matched by their `REFERENCES` clauses.
+
+### Build Setup
+
+Each package has two tsconfig files:
+- `tsconfig.json` — includes all files (source + tests), used by the IDE for type checking
+- `tsconfig.build.json` — extends `tsconfig.json` but excludes `*.test.ts`, used by `pnpm build`
+
+Tests use Node.js built-in test runner with `tsx` for TypeScript support: `node --test --import tsx src/**/*.test.ts`
+
 ## Packages
 
-| Package | Purpose |
-|---------|---------|
-| `@m2sql/model` | Shared type definitions, SQL schema parsing, validation types |
-| `@m2sql/parser` | Markdown to semantic model (remark/unified AST walker) |
-| `@m2sql/sqlite` | Model to SQLite compilation, SQLite to model extraction |
-| `@m2sql/renderer` | Model to markdown (topological sort, PK annotations) |
-| `@m2sql/supabase` | SQLite to Supabase sync (upsert only), Supabase to model export |
-| `@m2sql/cli` | CLI orchestration of the above |
+| Package | Status | Purpose |
+|---------|--------|---------|
+| `@m2sql/model` | Done | Shared type definitions, SQL schema parsing, validation types |
+| `@m2sql/parser` | Done | Markdown to semantic model (remark/unified AST walker) |
+| `@m2sql/sqlite` | Done | Model to SQLite compilation, SQLite to model extraction |
+| `@m2sql/renderer` | Not started | Model to markdown (topological sort, PK annotations) |
+| `@m2sql/supabase` | Not started | SQLite to Supabase sync (upsert only), Supabase to model export |
+| `@m2sql/cli` | Not started | CLI orchestration of the above |
 
 ## Apps
 
-| App | Purpose |
-|-----|---------|
-| `apps/web` | Next.js website for visualization (node graphs, Gantt charts, toggle-list trees) |
+| App | Status | Purpose |
+|-----|--------|---------|
+| `apps/web` | Not started | Next.js website for visualization (node graphs, Gantt charts, toggle-list trees) |
+
+## What Has Been Implemented
+
+### @m2sql/model (Phase 1)
+
+- `types.ts` - Semantic model interfaces: `Database`, `Table`, `Row`, `ColumnValues`, `Relationships`, `ParseResult`, `ValidationResult`
+- `schema.ts` - SQL `CREATE TABLE` parser producing `TableSchema` with columns, primary keys, foreign keys, defaults, unique/check constraints
+- Column value validation against schema definitions
+
+### @m2sql/parser (Phase 1)
+
+- Markdown to AST via `unified` / `remark-parse`
+- `@database` inline tag on H1 headings to mark database sections (H1 without the tag is ignored)
+- Heading parser extracts name, `PK: n`, explicit `{#anchor}`, and `@tags` from a single heading line
+- Auto-slugified anchors via `github-slugger`, with explicit anchor override support
+- YAML-style column value parsing from indented text under `#### Columns`
+- Relationship parsing: `#### Relationships` > `##### Type` > bullet list with markdown links
+- Roles on relationship entries (e.g., `parent: [Target](#anchor)`)
+- Recursive `getTextContent` for headings with inline formatting (bold, italic, links)
+- Validation: duplicate anchors, duplicate row names per table, unresolved references, cycle detection in `part_of` and `depends_on` graphs
+- 10 passing tests
+
+### @m2sql/sqlite (Phase 2)
+
+- `compileToSqlite(databases)` - creates tables from raw SQL, inserts rows with name/anchor/column values, auto-adds `anchor` column if missing from schema
+- Explicit PK insertion when `PK: n` is present in the heading
+- Junction table inference: maps relationship types (e.g., "Part Of") to junction tables (e.g., `task_part_of`) by matching naming conventions and foreign key references
+- Anchor-to-ID resolution for populating junction table foreign keys
+- `extractFromDb(db, name)` - reads tables, rows, and junction relationships back into the semantic model; reverse-resolves junction entries to anchors
+- `exportDatabase(db)` - serializes the in-memory database to `Uint8Array` for file output
+- Uses `sql.js` (WASM-based SQLite) - no native compilation required
+- 5 passing tests (including round-trip compile/extract)
+
+## What Remains Outstanding
+
+### Phase 3: Markdown Rendering (`@m2sql/renderer`)
+
+- Model to markdown output with PKs, anchors, and schema blocks
+- Topological sort for row ordering based on `part_of` hierarchy, `depends_on` edges, `priority` (ascending), and `created_utc` (ascending)
+- Cross-branch dependency annotation without subtree reordering
+
+### Phase 4: Supabase Sync (`@m2sql/supabase`)
+
+- UPSERT to Supabase: match by PK first, then exact row name, then create new
+- Junction table FK translation: local SQLite IDs to Supabase IDs via anchor mapping
+- Insert/update only - no deletion from Supabase
+- Export from Supabase to semantic model
+
+### Phase 5: CLI (`@m2sql/cli`)
+
+- `compile` command: markdown to .db file
+- `validate` command: check markdown syntax without compiling
+- `sync` command: .db file to Supabase
+- `export` command: Supabase to markdown
+- Config file support (`.pp-trackerrc.json`)
+- Environment variable handling for Supabase credentials
+
+### Phase 6: Web UI (`apps/web`)
+
+- Next.js application
+- Graphical relational views: node graphs, Gantt charts, toggle-list trees
+- Supabase integration for live data
 
 ## CLI Commands (Planned)
 
@@ -82,22 +167,14 @@ pp-tracker sync tracker.db --project <supabase-url> --key <anon-key>
 pp-tracker export --project <supabase-url> --key <anon-key> -o backup.md
 ```
 
-## Implementation Phases
-
-1. **Core parsing** - `@m2sql/model` and `@m2sql/parser` (in progress)
-2. **SQLite compilation** - `@m2sql/sqlite`
-3. **Markdown rendering** - `@m2sql/renderer`
-4. **Supabase sync** - `@m2sql/supabase`
-5. **CLI polish** - `@m2sql/cli` with config file support
-6. **Web UI** - `apps/web` with relational visualization
-
 ## Tech Stack
 
 - **Language:** TypeScript
 - **Monorepo:** pnpm workspaces
 - **Markdown parsing:** unified / remark-parse / mdast
-- **SQLite:** better-sqlite3
-- **Supabase client:** @supabase/supabase-js
-- **CLI:** commander
-- **Web:** Next.js
+- **SQLite:** sql.js (WASM-based, no native compilation)
+- **Supabase client:** @supabase/supabase-js (planned)
+- **CLI:** commander (planned)
+- **Web:** Next.js (planned)
 - **Config:** JSON (`.pp-trackerrc.json`)
+- **Test runner:** Node.js built-in test runner with tsx
