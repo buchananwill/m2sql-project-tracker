@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+.pp-trackerrc.json
+*.db
+*.sqlite
+.DS_Store
+Thumbs.db
+.turbo
+.next
+out/
