@@ -1,0 +1,21 @@
+{
+  "name": "@m2sql/model",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "node --test --experimental-strip-types src/**/*.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

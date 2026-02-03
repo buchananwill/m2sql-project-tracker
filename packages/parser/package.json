@@ -1,0 +1,31 @@
+{
+  "name": "@m2sql/parser",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@m2sql/model": "workspace:*",
+    "github-slugger": "^2.0.0",
+    "unified": "^11.0.4",
+    "remark-parse": "^11.0.0",
+    "unist-util-visit": "^5.0.0",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/mdast": "^4.0.3",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  }
+}
