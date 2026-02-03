@@ -52,6 +52,25 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/sqlite:
+    dependencies:
+      '@m2sql/model':
+        specifier: workspace:*
+        version: link:../model
+      sql.js:
+        specifier: ^1.10.0
+        version: 1.13.0
+    devDependencies:
+      '@m2sql/parser':
+        specifier: workspace:*
+        version: link:../parser
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.31
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
 packages:
 
   '@esbuild/aix-ppc64@0.27.2':
@@ -350,6 +369,9 @@ packages:
 
   resolve-pkg-maps@1.0.0:
     resolution: {integrity: sha512-seS2Tj26TBVOC2NIc2rOe2y2ZO7efxITtLZcGSOnHHNOQ7CkiUBfw0Iw2ck6xkIhPwLhKNLS8BO+hEpngQlqzw==}
+
+  sql.js@1.13.0:
+    resolution: {integrity: sha512-RJbVP1HRDlUUXahJ7VMTcu9Rm1Nzw+EBpoPr94vnbD4LwR715F3CcxE2G2k45PewcaZ57pjetYa+LoSJLAASgA==}
 
   trough@2.2.0:
     resolution: {integrity: sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw==}
@@ -715,6 +737,8 @@ snapshots:
       - supports-color
 
   resolve-pkg-maps@1.0.0: {}
+
+  sql.js@1.13.0: {}
 
   trough@2.2.0: {}
 
