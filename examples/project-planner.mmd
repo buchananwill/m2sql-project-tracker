@@ -1,0 +1,93 @@
+%% CREATE TABLE task (
+%%   task_type TEXT,
+%%   hours_estimate INTEGER
+%% );
+%%
+%% CREATE TABLE task_part_of (
+%%   parent_task_id INTEGER REFERENCES task(id),
+%%   child_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (parent_task_id, child_task_id)
+%% );
+%%
+%% CREATE TABLE task_depends_on (
+%%   dependent_task_id INTEGER REFERENCES task(id),
+%%   prerequisite_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (dependent_task_id, prerequisite_task_id)
+%% );
+%%
+%% *-- task_part_of
+%% ..> task_depends_on
+---
+title: Piste Perfect Project Planner
+config:
+    look: handDrawn
+---
+classDiagram
+
+namespace task {
+    class EAR:::task{
+    name: Early Access Release
+    task_type: milestone
+    hours_estimate: 2000
+    }
+
+    class CGL:::task{
+    name: Complete Core Game Loop
+    task_type: gameplay logic
+    hours_estimate: 500
+    }
+
+    class CGL_Spec:::task{
+    name: Specification: Core Game Loop
+    task_type: initial design
+    hours_estimate: 16
+    }
+
+    class CGL_Impl:::task{
+    name: Implementation: Core Game Loop
+    task_type: code
+    hours_estimate: 100
+    }
+
+    class CoreContent:::task{
+    name: Core Creative Content
+    }
+
+    class LiftMeshes:::task{
+    name: Lift Mesh Assets
+    task_type: 3d_model
+    hours_estimate: 250
+    }
+
+    class LTM:::task{
+    name: Lift Terminal Meshes
+    task_type: 3d_model
+    hours_estimate: 120
+    }
+
+    class LTM_Board:::task{
+    name: Lift Boarding Terminal Meshes
+    task_type: 3d_model
+    hours_estimate: 60
+    }
+
+    class LTM_Alight:::task{
+    name: Lift Alighting Terminal Meshes
+    task_type: 3d_model
+    hours_estimate: 60
+    }
+}
+
+EAR *-- CGL
+EAR *-- CoreContent
+CGL *-- CGL_Spec
+CGL *-- CGL_Impl
+CGL_Impl ..> CGL_Spec
+CoreContent *-- LiftMeshes
+LiftMeshes *-- LTM
+LTM *-- LTM_Board
+LTM *-- LTM_Alight
+
+classDef task fill:#eeeeff,stroke:#00c
