@@ -29,9 +29,13 @@ The authoring format uses Mermaid's `classDiagram` syntax. See `MERMAID_RULESHEE
 
 ### SQL Schema Header
 
-Table schemas are declared as commented-out SQL at the top of the `.mmd` file, before the frontmatter. This includes data tables, junction tables, and arrow mappings:
+Table schemas are declared as commented-out SQL at the top of the `.mmd` file, after frontmatter. This includes data tables, junction tables, and arrow mappings:
 
-```
+```mermaid
+---
+title: Database Name
+---
+
 %% CREATE TABLE task (
 %%   task_type TEXT,
 %%   hours_estimate INTEGER
@@ -40,21 +44,30 @@ Table schemas are declared as commented-out SQL at the top of the `.mmd` file, b
 %% CREATE TABLE task_part_of (
 %%   parent_task_id INTEGER REFERENCES task(id),
 %%   child_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
 %%   PRIMARY KEY (parent_task_id, child_task_id)
 %% );
 %%
-%% *-- task_part_of
+%% parent_task_id *-- child_task_id : task_part_of
+
+classDiagram
+namespace task {
+    class EAR:::task{
+        name: Early Access Release
+        task_type: milestone
+    }
+}
 ```
 
 ### Auto-Managed Columns
 
 Three columns are always present on every data table and do not need to be declared in the schema:
 
-| Column | Type | Behaviour |
-|---|---|---|
-| `id` | `INTEGER PRIMARY KEY` | Auto-assigned. If a row declares `id:`, used for UPSERT. |
-| `name` | `TEXT NOT NULL` | From the `name:` class attribute. |
-| `anchor` | `TEXT UNIQUE NOT NULL` | From the class identifier. |
+| Column   | Type                   | Behaviour                                                |
+|----------|------------------------|----------------------------------------------------------|
+| `id`     | `INTEGER PRIMARY KEY`  | Auto-assigned. If a row declares `id:`, used for UPSERT. |
+| `name`   | `TEXT NOT NULL`        | From the `name:` class attribute.                        |
+| `anchor` | `TEXT UNIQUE NOT NULL` | From the class identifier.                               |
 
 ### Schema Flexibility
 
@@ -62,9 +75,11 @@ If a row attribute doesn't match a declared column, a new column is added with t
 
 ### Relationships
 
-Relationship types are not hard-coded. Any valid Mermaid arrow syntax can be mapped to a declared junction table. Arrow directions follow UML conventions. The LHS of an arrow maps to the first FK in the junction table, the RHS to the second.
+Relationship types are not hard-coded. Any valid Mermaid arrow syntax can be mapped to a declared junction table via explicit arrow mappings in the SQL header.
 
-Junction tables may include an optional `label TEXT` column, populated via Mermaid's `: label` syntax on arrows.
+Arrow directions follow UML conventions. The LHS of an arrow maps to the left FK column in the mapping, the RHS to the right FK column.
+
+Junction tables may include an optional `label TEXT` column, populated via Mermaid's `: "label"` syntax on arrows.
 
 ### UPSERT Matching
 
@@ -73,7 +88,7 @@ When syncing, rows are matched in this order:
 2. By exact `name:` match within the table
 3. If neither matches, create a new row
 
-Row names must be unique per table.
+Row names must be unique per table. Anchors must be unique globally.
 
 ### Source of Truth
 
@@ -104,115 +119,173 @@ Each package has two tsconfig files:
 
 Tests use Node.js built-in test runner with `tsx` for TypeScript support: `node --test --import tsx src/**/*.test.ts`
 
-## Packages
+## Implementation Status
 
-| Package | Status | Purpose |
-|---------|--------|---------|
-| `@m2sql/model` | Needs update | Shared type definitions, SQL schema parsing, validation types |
-| `@m2sql/parser` | Needs rewrite | Mermaid `.mmd` to semantic model |
-| `@m2sql/sqlite` | Needs update | Model to SQLite compilation, SQLite to model extraction |
-| `@m2sql/renderer` | Not started | Model to Mermaid export (topological sort, PK annotations) |
-| `@m2sql/supabase` | Not started | SQLite to Supabase sync (upsert only), Supabase to model export |
-| `@m2sql/cli` | Not started | CLI orchestration of the above |
+### Completed Packages
 
-## Apps
+| Package         | Status     | Tests          | Purpose                                     |
+|-----------------|------------|----------------|---------------------------------------------|
+| `@m2sql/model`  | ✅ Complete | 0 (types only) | Shared type definitions, SQL schema parsing |
+| `@m2sql/parser` | ✅ Complete | 32/32 passing  | Mermaid `.mmd` to semantic model            |
+| `@m2sql/sqlite` | ✅ Complete | 9/9 passing    | Model to SQLite compilation                 |
+| `@m2sql/cli`    | ✅ Complete | Manual testing | Command-line interface                      |
 
-| App | Status | Purpose |
-|-----|--------|---------|
-| `apps/web` | Not started | Next.js website for visualization (node graphs, Gantt charts, toggle-list trees) |
+### Not Yet Started
 
-## What Has Been Implemented (Markdown Era)
-
-The following packages were built for the original markdown-based format. They need to be updated or rewritten for the Mermaid-based format.
+| Package           | Purpose                                         |
+|-------------------|-------------------------------------------------|
+| `@m2sql/renderer` | Model to Mermaid export (round-trip capability) |
+| `@m2sql/supabase` | SQLite ↔ Supabase bidirectional sync            |
+| `apps/web`        | Next.js visualization dashboard                 |
 
 ### @m2sql/model
 
+**Implemented:**
 - `types.ts` - Semantic model interfaces: `Database`, `Table`, `Row`, `ColumnValues`, `Relationships`, `ParseResult`, `ValidationResult`
-- `schema.ts` - SQL `CREATE TABLE` parser producing `TableSchema` with columns, primary keys, foreign keys, defaults, unique/check constraints
-- Column value validation against schema definitions
+- `schema.ts` - SQL `CREATE TABLE` parser producing `TableSchema` with columns, primary keys, foreign keys, constraints
 
 ### @m2sql/parser
 
-- Markdown to AST via `unified` / `remark-parse` -- **will be replaced with Mermaid parser**
-- Heading parser, anchor slugification, column value parsing, relationship parsing, validation
-- 10 passing tests (markdown format)
+**Implemented:**
+- 7-phase Mermaid `classDiagram` parser
+- SQL header parsing (CREATE TABLE + arrow mappings)
+- Frontmatter YAML extraction
+- Namespace → table, class → row mapping
+- Arrow parsing with junction table resolution
+- Validation: unique anchors, cycle detection, FK table matching
+- **32/32 tests passing** (461ms duration)
 
 ### @m2sql/sqlite
 
-- `compileToSqlite(databases)` - creates tables, inserts rows, auto-adds `anchor` column
-- Junction table inference, anchor-to-ID resolution, round-trip extraction
-- Uses `sql.js` (WASM-based SQLite)
-- 5 passing tests
-
-## What Needs to Change
-
-### Phase 1: Model Update (`@m2sql/model`)
-
-- Update `types.ts` to reflect Mermaid-specific concepts (arrow mappings, junction table declarations)
-- `schema.ts` SQL parser is reusable as-is (commented SQL uses the same `CREATE TABLE` syntax)
-- Add types for arrow-to-junction-table mappings
-
-### Phase 2: Parser Rewrite (`@m2sql/parser`)
-
-- Replace remark/unified markdown parsing with Mermaid `classDiagram` parsing
-- Parse commented SQL header: `CREATE TABLE` statements and arrow mapping directives
-- Parse frontmatter for database name
-- Parse namespaces as tables, classes as rows, class bodies as column values
-- Parse relationship arrows and resolve to junction table mappings
-- Validate: unique anchors, unique names per table, resolved references, arrow mappings exist, FK table matches, cycle detection
-
-### Phase 3: SQLite Update (`@m2sql/sqlite`)
-
-- Update compilation to use declared junction tables and arrow mappings instead of inferred junction tables
+**Implemented:**
+- `compileToSqlite(databases)` - Creates tables, inserts rows with FK resolution
 - Auto-managed column injection (`id`, `name`, `anchor`)
-- Schema flexibility: auto-add TEXT columns for undeclared attributes
-- UPSERT logic: match by `id:` first, then `name:`, then create new
-- Extraction logic largely reusable
+- Junction table compilation with anchor→ID translation
+- Schema flexibility (auto-add TEXT columns)
+- Uses `sql.js` (WASM-based SQLite)
+- **9/9 tests passing** (117ms duration)
 
-### Phase 4: Mermaid Export (`@m2sql/renderer`)
+### @m2sql/cli
 
-- Model to `.mmd` output with SQL header, frontmatter, namespaces, classes, and arrows
-- Topological sort for row ordering
-- Include `id:` in exported rows for round-trip UPSERT
+**Implemented:**
+- `compile` command: `.mmd` → `.db` file
+- `validate` command: syntax checking without compilation
+- Proper error handling and user feedback
+- Verbose mode for detailed output
+- **All commands tested and working**
 
-### Phase 5: Supabase Sync (`@m2sql/supabase`)
+**Usage:**
+```bash
+# From project root (via workspace script)
+pnpm m2sql compile examples/project-planner.mmd -v
+pnpm m2sql validate examples/project-planner.mmd
+pnpm m2sql help
 
-- UPSERT to Supabase: match by PK, then name, then create new
-- Junction table FK translation: local SQLite IDs to Supabase IDs via anchor mapping
-- Insert/update only -- no deletion
-- Export from Supabase to semantic model
+# Or install globally
+cd packages/cli && pnpm link --global
+m2sql compile input.mmd -o output.db
+```
 
-### Phase 6: CLI (`@m2sql/cli`)
+## What's Next
 
-- `compile` command: `.mmd` to `.db` file
-- `validate` command: check `.mmd` syntax without compiling
-- `sync` command: `.db` file to Supabase
-- `export` command: Supabase to `.mmd`
-- Config file support
-- Environment variable handling for Supabase credentials
+### Priority Order
 
-### Phase 7: Web UI (`apps/web`)
+1. **@m2sql/renderer** (CRITICAL - blocks everything else)
+   - Export semantic model → `.mmd` format
+   - Topological sort for row ordering
+   - Include `id:` in exported rows for round-trip UPSERT
+   - Enables: Round-trip editing, CLI export command
 
-- Next.js application
-- Graphical relational views: node graphs, Gantt charts, toggle-list trees
-- Supabase integration for live data
+2. **@m2sql/supabase**
+   - SQLite ↔ Supabase bidirectional sync
+   - UPSERT logic with anchor-based FK resolution
+   - Insert/update only (no deletion)
+   - Enables: Multi-user collaboration, cloud backup
 
-## CLI Commands (Planned)
+3. **Web UI** (`apps/web`)
+   - Next.js visualization dashboard
+   - Graphical views: node graphs, Gantt charts, tree views
+   - Supabase real-time integration
+   - Enables: Visual project tracking interface
+
+## CLI Commands
+
+### Currently Available
 
 ```bash
-m2sql compile input.mmd -o tracker.db
-m2sql validate input.mmd
-m2sql sync tracker.db --project <supabase-url> --key <anon-key>
-m2sql export --project <supabase-url> --key <anon-key> -o backup.mmd
+# Compile Mermaid to SQLite
+pnpm m2sql compile project.mmd
+pnpm m2sql compile project.mmd -o output.db -v
+
+# Validate syntax
+pnpm m2sql validate project.mmd -v
+
+# Help and version
+pnpm m2sql help
+pnpm m2sql version
+```
+
+### Planned (After Renderer & Supabase)
+
+```bash
+# Export from Supabase to Mermaid
+m2sql export --project <url> --key <key> -o backup.mmd
+
+# Sync SQLite to Supabase
+m2sql sync tracker.db --project <url> --key <key>
 ```
 
 ## Tech Stack
 
-- **Language:** TypeScript
+**Current:**
+- **Language:** TypeScript 5.7
 - **Monorepo:** pnpm workspaces
-- **Mermaid parsing:** Custom parser for `classDiagram` subset
-- **SQLite:** sql.js (WASM-based, no native compilation)
-- **Supabase client:** @supabase/supabase-js (planned)
-- **CLI:** commander (planned)
-- **Web:** Next.js (planned)
+- **Mermaid parsing:** Custom 7-phase classDiagram parser
+- **SQLite:** sql.js 1.13 (WASM-based, no native compilation)
 - **Test runner:** Node.js built-in test runner with tsx
+- **CLI framework:** Native argument parsing (no dependencies)
+
+**Planned:**
+- **Supabase client:** @supabase/supabase-js
+- **Web framework:** Next.js
+- **Visualization:** Mermaid.js, recharts, react-flow
+
+## Development Workflow
+
+```bash
+# Install dependencies
+pnpm install
+
+# Build all packages
+pnpm build
+
+# Run all tests
+pnpm test
+
+# Use CLI from project root
+pnpm m2sql compile examples/project-planner.mmd -v
+
+# Watch mode for development
+cd packages/parser && pnpm test --watch
+```
+
+## Project Structure
+
+```
+m2sql-project-tracker/
+├── packages/
+│   ├── model/          ✅ Types and schema parsing
+│   ├── parser/         ✅ Mermaid → AST (32 tests)
+│   ├── sqlite/         ✅ AST → SQLite (9 tests)
+│   ├── cli/            ✅ Command-line interface
+│   ├── renderer/       🚧 AST → Mermaid export
+│   └── supabase/       🚧 SQLite ↔ Supabase sync
+├── apps/
+│   └── web/            🚧 Next.js dashboard
+├── examples/
+│   └── project-planner.mmd    Working example
+├── MERMAID_RULESHEET.md       Complete specification
+└── project_summary.md         This file
+
+Legend: ✅ Complete | 🚧 Not started
+```

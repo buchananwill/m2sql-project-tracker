@@ -5,7 +5,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "clean": "pnpm -r clean"
+    "clean": "pnpm -r clean",
+    "m2sql": "pnpm --filter @m2sql/cli dev"
   },
   "devDependencies": {
     "tsx": "^4.21.0",
