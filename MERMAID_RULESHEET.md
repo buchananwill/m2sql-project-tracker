@@ -1,6 +1,6 @@
 # Mermaid classDiagram Rulesheet
 
-Mapping from the original markdown-based project tracker format to Mermaid `classDiagram` syntax.
+Mapping from Mermaid `classDiagram` syntax to an SQL database export.
 
 ## Pipeline
 
@@ -10,20 +10,20 @@ Mermaid (.mmd)  -->  AST  -->  SQLite  -->  Supabase  -->  Web UI
 
 ## Concept Mapping
 
-| Markdown Format | Mermaid classDiagram | Example |
-|---|---|---|
-| H1 `@database` heading | Frontmatter `title:` + `classDiagram` block | `title: My Project` |
-| H2 table + SQL schema block | `namespace <table> { ... }` | `namespace task { ... }` |
-| SQL schema fenced code block | Commented SQL header (`%%`) | `%% CREATE TABLE task (...)` |
-| H3 row heading | `class <Anchor> { ... }` | `class EAR { ... }` |
-| Heading text (row name) | `name:` attribute in class body | `name: Early Access Release` |
-| `{#anchor}` explicit anchor | Class identifier | `class EAR` |
-| `PK: 42` in heading | `id: 42` attribute in class body | `id: 42` |
-| `#### Columns` key: value | Attributes in class body | `hours_estimate: 500` |
-| `#### Relationships` (all types) | Declared arrow syntax | `EAR *-- CGL` |
-| Junction table (inferred by name) | Declared junction table + arrow mapping | `%% *-- task_part_of` |
-| Mermaid comment `%%` | Comments, SQL header, arrow mappings | `%% sprint 3 tasks` |
-| `classDef` | Visual styling (no parsing impact) | `classDef task fill:#eef` |
+| Markdown Format                   | Mermaid classDiagram                        | Example                      |
+|-----------------------------------|---------------------------------------------|------------------------------|
+| H1 `@database` heading            | Frontmatter `title:` + `classDiagram` block | `title: My Project`          |
+| H2 table + SQL schema block       | `namespace <table> { ... }`                 | `namespace task { ... }`     |
+| SQL schema fenced code block      | Commented SQL header (`%%`)                 | `%% CREATE TABLE task (...)` |
+| H3 row heading                    | `class <Anchor> { ... }`                    | `class EAR { ... }`          |
+| Heading text (row name)           | `name:` attribute in class body             | `name: Early Access Release` |
+| `{#anchor}` explicit anchor       | Class identifier                            | `class EAR`                  |
+| `PK: 42` in heading               | `id: 42` attribute in class body            | `id: 42`                     |
+| `#### Columns` key: value         | Attributes in class body                    | `hours_estimate: 500`        |
+| `#### Relationships` (all types)  | Declared arrow syntax                       | `EAR *-- CGL`                |
+| Junction table (inferred by name) | Declared junction table + arrow mapping     | `%% *-- task_part_of`        |
+| Mermaid comment `%%`              | Comments, SQL header, arrow mappings        | `%% sprint 3 tasks`          |
+| `classDef`                        | Visual styling (no parsing impact)          | `classDef task fill:#eef`    |
 
 ## Rules
 
@@ -32,13 +32,15 @@ Mermaid (.mmd)  -->  AST  -->  SQLite  -->  Supabase  -->  Web UI
 One `.mmd` file = one database. The file has four sections in order:
 
 ```
-%% --- SQL schema (CREATE TABLE statements) ---
-%% --- Arrow-to-junction-table mappings ---
 ---
 title: Database Name
 config:
     look: handDrawn
 ---
+
+%% --- SQL schema (CREATE TABLE statements) ---
+%% --- Arrow-to-junction-table mappings ---
+
 classDiagram
 
 namespace table_name {
@@ -52,7 +54,7 @@ classDef styles (optional)
 
 ### 2. SQL Schema Header
 
-Table schemas are declared as commented-out SQL at the top of the file, before the frontmatter. Each `CREATE TABLE` is prefixed line-by-line with `%%`.
+Table schemas are declared as commented-out SQL underneath the YAML frontmatter, before the data markup. Each `CREATE TABLE` is prefixed line-by-line with `%%`.
 
 #### Data Tables
 
@@ -66,11 +68,11 @@ Table schemas are declared as commented-out SQL at the top of the file, before t
 
 Three columns are **auto-managed** and do not need to be declared:
 
-| Column | Type | Behaviour |
-|---|---|---|
-| `id` | `INTEGER PRIMARY KEY` | Auto-assigned on insert. If a row declares `id:`, that value is used for UPSERT (update if exists, insert if not). An integer `id` with no matching row is ignored and a new PK is auto-assigned. |
-| `name` | `TEXT NOT NULL` | Populated from the `name:` attribute in the class body. |
-| `anchor` | `TEXT UNIQUE NOT NULL` | Populated from the class identifier (e.g., `EAR`). |
+| Column   | Type                   | Behaviour                                                                                                                                                                                         |
+|----------|------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `id`     | `INTEGER PRIMARY KEY`  | Auto-assigned on insert. If a row declares `id:`, that value is used for UPSERT (update if exists, insert if not). An integer `id` with no matching row is ignored and a new PK is auto-assigned. |
+| `name`   | `TEXT NOT NULL`        | Populated from the `name:` attribute in the class body.                                                                                                                                           |
+| `anchor` | `TEXT UNIQUE NOT NULL` | Populated from the class identifier (e.g., `EAR`).                                                                                                                                                |
 
 If the SQL header explicitly declares any of these three columns, the explicit declaration takes precedence (allowing custom constraints). If omitted, sensible defaults are injected.
 
@@ -126,14 +128,14 @@ These combine into tokens like `*--`, `..>`, `<|--`, `o..o`, `--*`, `<..>`, etc.
 
 Arrow directions follow standard UML conventions:
 
-| Arrow | UML Meaning | LHS is | RHS is |
-|---|---|---|---|
-| `*--` | Composition | Whole (parent) | Part (child) |
-| `o--` | Aggregation | Whole | Part |
-| `-->` | Association | Source | Target |
-| `..>` | Dependency | Dependent | Dependency |
-| `<\|--` | Inheritance | Superclass | Subclass |
-| `--` | Link (undirected) | First FK | Second FK |
+| Arrow   | UML Meaning       | LHS is         | RHS is       |
+|---------|-------------------|----------------|--------------|
+| `*--`   | Composition       | Whole (parent) | Part (child) |
+| `o--`   | Aggregation       | Whole          | Part         |
+| `-->`   | Association       | Source         | Target       |
+| `..>`   | Dependency        | Dependent      | Dependency   |
+| `<\|--` | Inheritance       | Superclass     | Subclass     |
+| `--`    | Link (undirected) | First FK       | Second FK    |
 
 The LHS of the arrow always maps to the **first declared FK** in the junction table, and the RHS maps to the **second declared FK**.
 
@@ -181,12 +183,12 @@ When a column is **not** declared in the schema (triggering the auto-add-as-TEXT
 
 For reference, the value syntax in the Mermaid class body:
 
-| Syntax | Example |
-|---|---|
-| Bare value | `hours_estimate: 500` |
-| Quoted string | `name: "Core Game Loop"` (quotes stripped) |
-| Boolean keywords | `archived: false` |
-| Empty (null) | `due_date:` |
+| Syntax           | Example                                    |
+|------------------|--------------------------------------------|
+| Bare value       | `hours_estimate: 500`                      |
+| Quoted string    | `name: "Core Game Loop"` (quotes stripped) |
+| Boolean keywords | `archived: false`                          |
+| Empty (null)     | `due_date:`                                |
 
 ### 7. Relationships
 
@@ -291,7 +293,13 @@ Relationship arrows are grouped after all namespace blocks.
 
 ## Full Example
 
-```
+```mermaid
+---
+title: Piste Perfect Project Planner
+config:
+    look: handDrawn
+---
+
 %% CREATE TABLE task (
 %%   task_type TEXT,
 %%   hours_estimate INTEGER
@@ -313,11 +321,7 @@ Relationship arrows are grouped after all namespace blocks.
 %%
 %% *-- task_part_of
 %% ..> task_depends_on
----
-title: Piste Perfect Project Planner
-config:
-    look: handDrawn
----
+
 classDiagram
 
 namespace task {
