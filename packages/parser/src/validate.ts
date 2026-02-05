@@ -101,12 +101,12 @@ export function validateModel(databases: Database[]): ValidationResult {
     }
   }
 
-  // Check for cycles in part_of relationships
-  const partOfCycles = detectPartOfCycles(databases, anchorMap);
+  // Check for cycles in hierarchical relationships (part_of, contains, etc.)
+  const partOfCycles = detectHierarchicalCycles(databases, anchorMap);
   errors.push(...partOfCycles);
 
-  // Check for cycles in depends_on relationships
-  const dependsCycles = detectDependsCycles(databases, anchorMap);
+  // Check for cycles in dependency relationships (depends_on, requires, etc.)
+  const dependsCycles = detectDependencyCycles(databases, anchorMap);
   errors.push(...dependsCycles);
 
   return {
@@ -116,9 +116,10 @@ export function validateModel(databases: Database[]): ValidationResult {
 }
 
 /**
- * Detect cycles in part_of (parent-child) relationships.
+ * Detect cycles in hierarchical (part_of) relationships.
+ * Supports both markdown format ("Part Of" key) and mermaid format (junction table names).
  */
-function detectPartOfCycles(
+function detectHierarchicalCycles(
   databases: Database[],
   anchorMap: Map<string, { database: Database; table: Table; row: Row }>
 ): ValidationError[] {
@@ -130,10 +131,22 @@ function detectPartOfCycles(
   for (const database of databases) {
     for (const table of database.tables) {
       for (const row of table.rows) {
+        const parents: string[] = [];
+
+        // Check markdown format: "Part Of" relationship
         const partOfEntries = row.relationships['Part Of'] ?? [];
-        const parents = partOfEntries
-          .filter(e => e.role === 'parent')
-          .map(e => e.targetAnchor);
+        parents.push(
+          ...partOfEntries
+            .filter(e => e.role === 'parent')
+            .map(e => e.targetAnchor)
+        );
+
+        // Check mermaid format: junction tables ending with _part_of
+        for (const [relType, entries] of Object.entries(row.relationships)) {
+          if (relType.endsWith('_part_of')) {
+            parents.push(...entries.map(e => e.targetAnchor));
+          }
+        }
 
         if (parents.length > 0) {
           parentMap.set(row.anchor, parents);
@@ -152,7 +165,7 @@ function detectPartOfCycles(
       const cycle = path.slice(cycleStart).concat(anchor);
       errors.push({
         type: 'cycle_detected',
-        message: `Cycle detected in part_of: ${cycle.join(' -> ')}`,
+        message: `Cycle detected in hierarchical relationship: ${cycle.join(' -> ')}`,
       });
       return true;
     }
@@ -183,9 +196,10 @@ function detectPartOfCycles(
 }
 
 /**
- * Detect cycles in depends_on relationships.
+ * Detect cycles in dependency (depends_on) relationships.
+ * Supports both markdown format ("Depends On" key) and mermaid format (junction table names).
  */
-function detectDependsCycles(
+function detectDependencyCycles(
   databases: Database[],
   anchorMap: Map<string, { database: Database; table: Table; row: Row }>
 ): ValidationError[] {
@@ -197,8 +211,18 @@ function detectDependsCycles(
   for (const database of databases) {
     for (const table of database.tables) {
       for (const row of table.rows) {
+        const deps: string[] = [];
+
+        // Check markdown format: "Depends On" relationship
         const dependsEntries = row.relationships['Depends On'] ?? [];
-        const deps = dependsEntries.map(e => e.targetAnchor);
+        deps.push(...dependsEntries.map(e => e.targetAnchor));
+
+        // Check mermaid format: junction tables ending with _depends_on
+        for (const [relType, entries] of Object.entries(row.relationships)) {
+          if (relType.endsWith('_depends_on')) {
+            deps.push(...entries.map(e => e.targetAnchor));
+          }
+        }
 
         if (deps.length > 0) {
           depsMap.set(row.anchor, deps);
@@ -217,7 +241,7 @@ function detectDependsCycles(
       const cycle = path.slice(cycleStart).concat(anchor);
       errors.push({
         type: 'cycle_detected',
-        message: `Cycle detected in depends_on: ${cycle.join(' -> ')}`,
+        message: `Cycle detected in dependency relationship: ${cycle.join(' -> ')}`,
       });
       return true;
     }

@@ -1,3 +1,9 @@
+---
+title: Piste Perfect Project Planner
+config:
+    look: handDrawn
+---
+
 %% CREATE TABLE task (
 %%   task_type TEXT,
 %%   hours_estimate INTEGER
@@ -17,13 +23,9 @@
 %%   PRIMARY KEY (dependent_task_id, prerequisite_task_id)
 %% );
 %%
-%% *-- task_part_of
-%% ..> task_depends_on
----
-title: Piste Perfect Project Planner
-config:
-    look: handDrawn
----
+%% parent_task_id *-- child_task_id : task_part_of
+%% dependent_task_id ..> prerequisite_task_id : task_depends_on
+
 classDiagram
 
 namespace task {
