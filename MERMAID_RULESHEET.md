@@ -10,20 +10,20 @@ Mermaid (.mmd)  -->  AST  -->  SQLite  -->  Supabase  -->  Web UI
 
 ## Concept Mapping
 
-| Markdown Format                   | Mermaid classDiagram                        | Example                      |
-|-----------------------------------|---------------------------------------------|------------------------------|
-| H1 `@database` heading            | Frontmatter `title:` + `classDiagram` block | `title: My Project`          |
-| H2 table + SQL schema block       | `namespace <table> { ... }`                 | `namespace task { ... }`     |
-| SQL schema fenced code block      | Commented SQL header (`%%`)                 | `%% CREATE TABLE task (...)` |
-| H3 row heading                    | `class <Anchor> { ... }`                    | `class EAR { ... }`          |
-| Heading text (row name)           | `name:` attribute in class body             | `name: Early Access Release` |
-| `{#anchor}` explicit anchor       | Class identifier                            | `class EAR`                  |
-| `PK: 42` in heading               | `id: 42` attribute in class body            | `id: 42`                     |
-| `#### Columns` key: value         | Attributes in class body                    | `hours_estimate: 500`        |
-| `#### Relationships` (all types)  | Declared arrow syntax                       | `EAR *-- CGL`                |
-| Junction table (inferred by name) | Declared junction table + arrow mapping     | `%% *-- task_part_of`        |
-| Mermaid comment `%%`              | Comments, SQL header, arrow mappings        | `%% sprint 3 tasks`          |
-| `classDef`                        | Visual styling (no parsing impact)          | `classDef task fill:#eef`    |
+| Markdown Format                   | Mermaid classDiagram                        | Example                                              |
+|-----------------------------------|---------------------------------------------|------------------------------------------------------|
+| H1 `@database` heading            | Frontmatter `title:` + `classDiagram` block | `title: My Project`                                  |
+| H2 table + SQL schema block       | `namespace <table> { ... }`                 | `namespace task { ... }`                             |
+| SQL schema fenced code block      | Commented SQL header (`%%`)                 | `%% CREATE TABLE task (...)`                         |
+| H3 row heading                    | `class <Anchor> { ... }`                    | `class EAR { ... }`                                  |
+| Heading text (row name)           | `name:` attribute in class body             | `name: Early Access Release`                         |
+| `{#anchor}` explicit anchor       | Class identifier                            | `class EAR`                                          |
+| `PK: 42` in heading               | `id: 42` attribute in class body            | `id: 42`                                             |
+| `#### Columns` key: value         | Attributes in class body                    | `hours_estimate: 500`                                |
+| `#### Relationships` (all types)  | Declared arrow syntax                       | `EAR *-- CGL`                                        |
+| Junction table (inferred by name) | Explicit FK column mapping                  | `%% parent_task_id *-- child_task_id : task_part_of` |
+| Mermaid comment `%%`              | Comments, SQL header, arrow mappings        | `%% sprint 3 tasks`                                  |
+| `classDef`                        | Visual styling (no parsing impact)          | `classDef task fill:#eef`                            |
 
 ## Rules
 
@@ -100,44 +100,63 @@ Junction tables declare relationships between rows. A junction table is identifi
 %% );
 ```
 
-FK column names are free-form, but **declaration order matters**: the first FK maps to the left-hand side of the arrow, the second FK maps to the right-hand side.
+FK column names are free-form. The relationship directionality is determined by explicit arrow mappings (see Rule 3).
 
 ### 3. Arrow-to-Junction-Table Mappings
 
-After the SQL header, comment directives map Mermaid arrow syntax to junction tables:
+After the SQL header, comment directives explicitly map Mermaid arrow syntax to junction tables with FK column names:
 
 ```
-%% *-- task_part_of
-%% ..> task_depends_on
+%% parent_task_id *-- child_task_id : task_part_of
+%% dependent_task_id ..> prerequisite_task_id : task_depends_on
 ```
 
-Each line pairs an arrow syntax token with a junction table name. The arrow syntax must be a valid Mermaid relationship type. Each arrow token can only map to one junction table per file.
+**Format:** `%% <left_fk_column> <arrow_token> <right_fk_column> : <junction_table_name>`
+
+Each mapping declares:
+- **Left FK column name** - the FK column that LHS anchors connect to
+- **Arrow token** - any valid Mermaid relationship syntax
+- **Right FK column name** - the FK column that RHS anchors connect to
+- **Junction table name** - the table containing the relationship
+
+This explicit format removes all ambiguity about relationship directionality and supports all 98 possible arrow combinations.
+
+#### Relationship Semantics
+
+When parsing an arrow like `A *-- B`:
+1. Look up the arrow mapping for `*--` → `parent_task_id *-- child_task_id : task_part_of`
+2. Check which FK column references A's table → `parent_task_id` references task, A is in task
+3. Check which FK column references B's table → `child_task_id` references task, B is in task
+4. Create unidirectional relationship: B points to A (B's parent is A)
+
+This follows UML composition convention: `A *-- B` means B is part of A, so the relationship entry is stored on B.
 
 #### Available Arrow Syntax
 
-Mermaid `classDiagram` provides two link styles and multiple end markers, yielding a large set of unique arrow tokens:
+Mermaid `classDiagram` provides two link styles and seven end markers per side:
 
 **Link styles:** `--` (solid), `..` (dashed)
 
-**End markers (left side):** `<|`, `<`, `*`, `o`, or none
-**End markers (right side):** `|>`, `>`, `*`, `o`, or none
+**End markers:** `<|`, `<`, `*`, `o`, `|>`, `>`, or none
 
-These combine into tokens like `*--`, `..>`, `<|--`, `o..o`, `--*`, `<..>`, etc. Any valid combination can be mapped to a junction table, giving dozens of available relationship slots.
+These combine into 98 unique arrow tokens (7 left × 7 right × 2 styles):
+- Examples: `*--`, `..>`, `<|--`, `o..o`, `--*`, `<..>`, `*--*`, `o-->`, etc.
+- Each arrow token can only map to one junction table per file
+- Any valid combination can be user-defined with explicit FK column mappings
 
-#### UML Semantics
+#### UML Convention Examples
 
-Arrow directions follow standard UML conventions:
+Common UML arrow patterns and their typical interpretations:
 
-| Arrow   | UML Meaning       | LHS is         | RHS is       |
-|---------|-------------------|----------------|--------------|
-| `*--`   | Composition       | Whole (parent) | Part (child) |
-| `o--`   | Aggregation       | Whole          | Part         |
-| `-->`   | Association       | Source         | Target       |
-| `..>`   | Dependency        | Dependent      | Dependency   |
-| `<\|--` | Inheritance       | Superclass     | Subclass     |
-| `--`    | Link (undirected) | First FK       | Second FK    |
+| Arrow | UML Meaning | Example Mapping                                   | Semantic Direction                   |
+|-------|-------------|---------------------------------------------------|--------------------------------------|
+| `*--` | Composition | `parent_task_id *-- child_task_id : task_part_of` | RHS (child) → LHS (parent)           |
+| `o--` | Aggregation | `container_id o-- item_id : container_items`      | RHS (item) → LHS (container)         |
+| `-->` | Association | `source_id --> target_id : associations`          | LHS (source) → RHS (target)          |
+| `..>` | Dependency  | `dependent_id ..> prerequisite_id : dependencies` | LHS (dependent) → RHS (prerequisite) |
+| `<    | --`         | Inheritance                                       | `parent_type_id <                    |-- child_type_id : type_hierarchy` | RHS (subclass) → LHS (superclass) |
 
-The LHS of the arrow always maps to the **first declared FK** in the junction table, and the RHS maps to the **second declared FK**.
+The FK column names in the mapping determine the actual directionality, regardless of arrow syntax.
 
 ### 4. Tables
 
@@ -205,7 +224,10 @@ Reading with UML conventions:
 - `EAR *-- CGL` -- EAR is composed of CGL. (CGL is part of EAR.)
 - `CGL_Impl ..> CGL_Spec` -- CGL_Impl depends on CGL_Spec. (Spec is a prerequisite for Impl.)
 
-The LHS anchor resolves to the first FK in the mapped junction table; the RHS anchor resolves to the second FK.
+The arrow mapping `parent_task_id *-- child_task_id : task_part_of` declares:
+- LHS anchor (EAR) connects via `parent_task_id` FK
+- RHS anchor (CGL) connects via `child_task_id` FK
+- Relationship entry stored on CGL (child points to parent)
 
 #### Labels
 
@@ -319,8 +341,8 @@ config:
 %%   PRIMARY KEY (dependent_task_id, prerequisite_task_id)
 %% );
 %%
-%% *-- task_part_of
-%% ..> task_depends_on
+%% parent_task_id *-- child_task_id : task_part_of
+%% dependent_task_id ..> prerequisite_task_id : task_depends_on
 
 classDiagram
 
@@ -394,5 +416,11 @@ classDef task fill:#eeeeff,stroke:#00c
 Reading this diagram:
 - `EAR *-- CGL` -- EAR (whole) is composed of CGL (part). Diamond on EAR, per UML composition.
 - `CGL_Impl ..> CGL_Spec` -- CGL_Impl (dependent) depends on CGL_Spec (prerequisite). Dashed arrow from dependent to dependency, per UML.
-- The SQL header declares `task_part_of` with `parent_task_id` first, so the LHS of `*--` (EAR) maps to `parent_task_id` and the RHS (CGL) maps to `child_task_id`.
-- The SQL header declares `task_depends_on` with `dependent_task_id` first, so the LHS of `..>` (CGL_Impl) maps to `dependent_task_id` and the RHS (CGL_Spec) maps to `prerequisite_task_id`.
+- The arrow mapping `parent_task_id *-- child_task_id : task_part_of` declares:
+  - LHS of `*--` (EAR) connects to `parent_task_id` FK
+  - RHS of `*--` (CGL) connects to `child_task_id` FK
+  - Result: CGL (child) has relationship entry pointing to EAR (parent)
+- The arrow mapping `dependent_task_id ..> prerequisite_task_id : task_depends_on` declares:
+  - LHS of `..>` (CGL_Impl) connects to `dependent_task_id` FK
+  - RHS of `..>` (CGL_Spec) connects to `prerequisite_task_id` FK
+  - Result: CGL_Impl (dependent) has relationship entry pointing to CGL_Spec (prerequisite)
