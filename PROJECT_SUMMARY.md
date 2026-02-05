@@ -2,39 +2,75 @@
 
 ## Overview
 
-A TypeScript monorepo that compiles structured markdown documents into SQLite databases, syncs them to Supabase, and renders them back to markdown. Designed to allow authoring project tracking data in plain text from any device (mobile, laptop, offline), then compiling to a relational format for analysis and visualization.
+A TypeScript monorepo that compiles Mermaid `classDiagram` files into SQLite databases, syncs them to Supabase, and exports them back to Mermaid. Designed to allow authoring project tracking data in plain text from any device (mobile, laptop, offline), with the added benefit that `.mmd` files render as readable diagrams in any Mermaid-compatible viewer.
 
 ## Pipeline
 
 ```
-Markdown  -->  SQLite  -->  Supabase  -->  Web UI (Next.js)
-   ^                                          |
-   |                                          |
-   +------------------------------------------+
-              (export to markdown)
+Mermaid (.mmd)  -->  AST  -->  SQLite  -->  Supabase  -->  Web UI (Next.js)
+      ^                                                        |
+      |                                                        |
+      +--------------------------------------------------------+
+                        (export to mermaid)
 ```
 
 ## Core Design Decisions
 
-### Markdown Format (Authoring)
+### Mermaid Format (Authoring)
 
-- **H1** defines a database (tagged with `@database` inline, e.g., `# Tracker @database`)
-- **H2** defines a table (SQL schema in a fenced code block)
-- **H3** defines a row, with optional PK and explicit anchor: `### Row Name \`PK: 42\` {#explicit-anchor}`
-- **H4 `#### Columns`** begins YAML-style column values for the parent row
-- **H4 `#### Relationships`** begins relationship entries, with **H5** subheadings for relationship type (e.g., `##### Part Of`, `##### Depends On`) followed by bullet lists with markdown links to other rows
+The authoring format uses Mermaid's `classDiagram` syntax. See `MERMAID_RULESHEET.md` for the full specification.
 
-### Primary Keys
+- **`namespace`** declares a table (e.g., `namespace task { ... }`)
+- **`class`** declares a row, with the class identifier as the row's anchor (e.g., `class EAR { ... }`)
+- **Class body** contains `key: value` column data, including a required `name:` attribute
+- **Arrows** between classes declare relationships, mapped to junction tables via header directives
+- **Commented SQL** (`%%`) at the top of the file declares table schemas and arrow-to-junction-table mappings
+- **`:::style`** suffix on classes is optional and purely visual (no parsing impact)
 
-- Integer primary keys throughout. Anchors (auto-slugified from heading text, or explicitly set) serve as unique secondary identifiers for sync matching.
-- When exporting from a database, PKs are included in the heading: `### Row Name \`PK: 42\``
-- When authoring new rows, PKs are omitted. The system assigns them on insert.
+### SQL Schema Header
 
-### ID Matching (Sync)
+Table schemas are declared as commented-out SQL at the top of the `.mmd` file, before the frontmatter. This includes data tables, junction tables, and arrow mappings:
 
-When syncing from SQLite to Supabase, rows are matched in this order:
-1. By explicit PK (if present in the markdown)
-2. By exact row name match within the table
+```
+%% CREATE TABLE task (
+%%   task_type TEXT,
+%%   hours_estimate INTEGER
+%% );
+%%
+%% CREATE TABLE task_part_of (
+%%   parent_task_id INTEGER REFERENCES task(id),
+%%   child_task_id INTEGER REFERENCES task(id),
+%%   PRIMARY KEY (parent_task_id, child_task_id)
+%% );
+%%
+%% *-- task_part_of
+```
+
+### Auto-Managed Columns
+
+Three columns are always present on every data table and do not need to be declared in the schema:
+
+| Column | Type | Behaviour |
+|---|---|---|
+| `id` | `INTEGER PRIMARY KEY` | Auto-assigned. If a row declares `id:`, used for UPSERT. |
+| `name` | `TEXT NOT NULL` | From the `name:` class attribute. |
+| `anchor` | `TEXT UNIQUE NOT NULL` | From the class identifier. |
+
+### Schema Flexibility
+
+If a row attribute doesn't match a declared column, a new column is added with type `TEXT`. The SQL schema is authoritative for types -- no value sniffing.
+
+### Relationships
+
+Relationship types are not hard-coded. Any valid Mermaid arrow syntax can be mapped to a declared junction table. Arrow directions follow UML conventions. The LHS of an arrow maps to the first FK in the junction table, the RHS to the second.
+
+Junction tables may include an optional `label TEXT` column, populated via Mermaid's `: label` syntax on arrows.
+
+### UPSERT Matching
+
+When syncing, rows are matched in this order:
+1. By explicit `id:` (if present and a row with that PK exists)
+2. By exact `name:` match within the table
 3. If neither matches, create a new row
 
 Row names must be unique per table.
@@ -42,34 +78,23 @@ Row names must be unique per table.
 ### Source of Truth
 
 - **Supabase** is the canonical source of truth.
-- Markdown is an authoring/input format that can insert and update rows, but **never delete**.
+- Mermaid is an authoring/input format that can insert and update rows, but **never delete**.
 - Deletion is only performed via Supabase directly.
-- A complete markdown export from Supabase serves as a backup. An empty or partial markdown file cannot delete database contents.
+- A complete Mermaid export from Supabase serves as a backup. An empty or partial `.mmd` file cannot delete database contents.
 
 ### Ordering (Export)
 
-When rendering from database to markdown, row order is derived from relationships and metadata:
-1. `part_of` hierarchy (parents above children)
-2. `depends_on` topological sort (prerequisites before dependants)
-3. `priority` ascending (lower number = higher importance, read as "1st, 2nd, 3rd")
+When exporting from database to Mermaid, row order within a namespace is derived from:
+1. Composition hierarchy (parents before children)
+2. Dependency topological sort (prerequisites before dependants)
+3. `priority` ascending (lower number = higher importance)
 4. `created_utc` ascending (older first)
-
-Cross-branch dependencies do not reorder entire subtrees; they are documented in the relationship section only.
 
 ## Quick Reference
 
 ### Example
 
-See `examples/piste_perfect_project_tracker.md` for a full real-world example — a project tracker for a skiing game with ~40 tasks, `part_of` hierarchy, `depends_on` chains, and multiple table schemas including junction tables.
-
-### Parsing Rules
-
-1. H1 headings are only treated as databases if they contain the `@database` tag. H1 headings without it are silently ignored, allowing document-level notes and rules above the data.
-2. Heading syntax is parsed right-to-left: `### Name \`PK: 42\` {#anchor}`. The anchor is extracted first, then the PK, then the remaining text is the name. Order matters.
-3. Anchors are auto-slugified from heading text (e.g., `Early Access Release` becomes `early-access-release`) unless an explicit `{#anchor}` is provided.
-4. Column values under `#### Columns` are indented plain text in `key: value` format. Quoted string values have quotes stripped. Unquoted numeric values are parsed as numbers.
-5. Relationships are structured as `#### Relationships` > `##### Type Name` > bullet list with markdown links. The link target `(#anchor)` resolves to the referenced row.
-6. Junction tables are inferred by naming convention: a relationship type "Part Of" on a `task` table looks for `task_part_of`, then `part_of`. The FK columns are matched by their `REFERENCES` clauses.
+See `examples/project-planner.mmd` for a working example -- a project tracker for a skiing game with composition and dependency relationships.
 
 ### Build Setup
 
@@ -83,10 +108,10 @@ Tests use Node.js built-in test runner with `tsx` for TypeScript support: `node 
 
 | Package | Status | Purpose |
 |---------|--------|---------|
-| `@m2sql/model` | Done | Shared type definitions, SQL schema parsing, validation types |
-| `@m2sql/parser` | Done | Markdown to semantic model (remark/unified AST walker) |
-| `@m2sql/sqlite` | Done | Model to SQLite compilation, SQLite to model extraction |
-| `@m2sql/renderer` | Not started | Model to markdown (topological sort, PK annotations) |
+| `@m2sql/model` | Needs update | Shared type definitions, SQL schema parsing, validation types |
+| `@m2sql/parser` | Needs rewrite | Mermaid `.mmd` to semantic model |
+| `@m2sql/sqlite` | Needs update | Model to SQLite compilation, SQLite to model extraction |
+| `@m2sql/renderer` | Not started | Model to Mermaid export (topological sort, PK annotations) |
 | `@m2sql/supabase` | Not started | SQLite to Supabase sync (upsert only), Supabase to model export |
 | `@m2sql/cli` | Not started | CLI orchestration of the above |
 
@@ -96,63 +121,77 @@ Tests use Node.js built-in test runner with `tsx` for TypeScript support: `node 
 |-----|--------|---------|
 | `apps/web` | Not started | Next.js website for visualization (node graphs, Gantt charts, toggle-list trees) |
 
-## What Has Been Implemented
+## What Has Been Implemented (Markdown Era)
 
-### @m2sql/model (Phase 1)
+The following packages were built for the original markdown-based format. They need to be updated or rewritten for the Mermaid-based format.
+
+### @m2sql/model
 
 - `types.ts` - Semantic model interfaces: `Database`, `Table`, `Row`, `ColumnValues`, `Relationships`, `ParseResult`, `ValidationResult`
 - `schema.ts` - SQL `CREATE TABLE` parser producing `TableSchema` with columns, primary keys, foreign keys, defaults, unique/check constraints
 - Column value validation against schema definitions
 
-### @m2sql/parser (Phase 1)
+### @m2sql/parser
 
-- Markdown to AST via `unified` / `remark-parse`
-- `@database` inline tag on H1 headings to mark database sections (H1 without the tag is ignored)
-- Heading parser extracts name, `PK: n`, explicit `{#anchor}`, and `@tags` from a single heading line
-- Auto-slugified anchors via `github-slugger`, with explicit anchor override support
-- YAML-style column value parsing from indented text under `#### Columns`
-- Relationship parsing: `#### Relationships` > `##### Type` > bullet list with markdown links
-- Roles on relationship entries (e.g., `parent: [Target](#anchor)`)
-- Recursive `getTextContent` for headings with inline formatting (bold, italic, links)
-- Validation: duplicate anchors, duplicate row names per table, unresolved references, cycle detection in `part_of` and `depends_on` graphs
-- 10 passing tests
+- Markdown to AST via `unified` / `remark-parse` -- **will be replaced with Mermaid parser**
+- Heading parser, anchor slugification, column value parsing, relationship parsing, validation
+- 10 passing tests (markdown format)
 
-### @m2sql/sqlite (Phase 2)
+### @m2sql/sqlite
 
-- `compileToSqlite(databases)` - creates tables from raw SQL, inserts rows with name/anchor/column values, auto-adds `anchor` column if missing from schema
-- Explicit PK insertion when `PK: n` is present in the heading
-- Junction table inference: maps relationship types (e.g., "Part Of") to junction tables (e.g., `task_part_of`) by matching naming conventions and foreign key references
-- Anchor-to-ID resolution for populating junction table foreign keys
-- `extractFromDb(db, name)` - reads tables, rows, and junction relationships back into the semantic model; reverse-resolves junction entries to anchors
-- `exportDatabase(db)` - serializes the in-memory database to `Uint8Array` for file output
-- Uses `sql.js` (WASM-based SQLite) - no native compilation required
-- 5 passing tests (including round-trip compile/extract)
+- `compileToSqlite(databases)` - creates tables, inserts rows, auto-adds `anchor` column
+- Junction table inference, anchor-to-ID resolution, round-trip extraction
+- Uses `sql.js` (WASM-based SQLite)
+- 5 passing tests
 
-## What Remains Outstanding
+## What Needs to Change
 
-### Phase 3: Markdown Rendering (`@m2sql/renderer`)
+### Phase 1: Model Update (`@m2sql/model`)
 
-- Model to markdown output with PKs, anchors, and schema blocks
-- Topological sort for row ordering based on `part_of` hierarchy, `depends_on` edges, `priority` (ascending), and `created_utc` (ascending)
-- Cross-branch dependency annotation without subtree reordering
+- Update `types.ts` to reflect Mermaid-specific concepts (arrow mappings, junction table declarations)
+- `schema.ts` SQL parser is reusable as-is (commented SQL uses the same `CREATE TABLE` syntax)
+- Add types for arrow-to-junction-table mappings
 
-### Phase 4: Supabase Sync (`@m2sql/supabase`)
+### Phase 2: Parser Rewrite (`@m2sql/parser`)
 
-- UPSERT to Supabase: match by PK first, then exact row name, then create new
+- Replace remark/unified markdown parsing with Mermaid `classDiagram` parsing
+- Parse commented SQL header: `CREATE TABLE` statements and arrow mapping directives
+- Parse frontmatter for database name
+- Parse namespaces as tables, classes as rows, class bodies as column values
+- Parse relationship arrows and resolve to junction table mappings
+- Validate: unique anchors, unique names per table, resolved references, arrow mappings exist, FK table matches, cycle detection
+
+### Phase 3: SQLite Update (`@m2sql/sqlite`)
+
+- Update compilation to use declared junction tables and arrow mappings instead of inferred junction tables
+- Auto-managed column injection (`id`, `name`, `anchor`)
+- Schema flexibility: auto-add TEXT columns for undeclared attributes
+- UPSERT logic: match by `id:` first, then `name:`, then create new
+- Extraction logic largely reusable
+
+### Phase 4: Mermaid Export (`@m2sql/renderer`)
+
+- Model to `.mmd` output with SQL header, frontmatter, namespaces, classes, and arrows
+- Topological sort for row ordering
+- Include `id:` in exported rows for round-trip UPSERT
+
+### Phase 5: Supabase Sync (`@m2sql/supabase`)
+
+- UPSERT to Supabase: match by PK, then name, then create new
 - Junction table FK translation: local SQLite IDs to Supabase IDs via anchor mapping
-- Insert/update only - no deletion from Supabase
+- Insert/update only -- no deletion
 - Export from Supabase to semantic model
 
-### Phase 5: CLI (`@m2sql/cli`)
+### Phase 6: CLI (`@m2sql/cli`)
 
-- `compile` command: markdown to .db file
-- `validate` command: check markdown syntax without compiling
-- `sync` command: .db file to Supabase
-- `export` command: Supabase to markdown
-- Config file support (`.pp-trackerrc.json`)
+- `compile` command: `.mmd` to `.db` file
+- `validate` command: check `.mmd` syntax without compiling
+- `sync` command: `.db` file to Supabase
+- `export` command: Supabase to `.mmd`
+- Config file support
 - Environment variable handling for Supabase credentials
 
-### Phase 6: Web UI (`apps/web`)
+### Phase 7: Web UI (`apps/web`)
 
 - Next.js application
 - Graphical relational views: node graphs, Gantt charts, toggle-list trees
@@ -161,20 +200,19 @@ Tests use Node.js built-in test runner with `tsx` for TypeScript support: `node 
 ## CLI Commands (Planned)
 
 ```bash
-pp-tracker compile input.md -o tracker.db
-pp-tracker validate input.md
-pp-tracker sync tracker.db --project <supabase-url> --key <anon-key>
-pp-tracker export --project <supabase-url> --key <anon-key> -o backup.md
+m2sql compile input.mmd -o tracker.db
+m2sql validate input.mmd
+m2sql sync tracker.db --project <supabase-url> --key <anon-key>
+m2sql export --project <supabase-url> --key <anon-key> -o backup.mmd
 ```
 
 ## Tech Stack
 
 - **Language:** TypeScript
 - **Monorepo:** pnpm workspaces
-- **Markdown parsing:** unified / remark-parse / mdast
+- **Mermaid parsing:** Custom parser for `classDiagram` subset
 - **SQLite:** sql.js (WASM-based, no native compilation)
 - **Supabase client:** @supabase/supabase-js (planned)
 - **CLI:** commander (planned)
 - **Web:** Next.js (planned)
-- **Config:** JSON (`.pp-trackerrc.json`)
 - **Test runner:** Node.js built-in test runner with tsx

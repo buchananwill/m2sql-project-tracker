@@ -17,9 +17,11 @@
   },
   "dependencies": {
     "@m2sql/model": "workspace:*",
+    "@mermaid-js/parser": "^0.6.3",
     "github-slugger": "^2.0.0",
-    "unified": "^11.0.4",
+    "mermaid": "^11.12.2",
     "remark-parse": "^11.0.0",
+    "unified": "^11.0.4",
     "unist-util-visit": "^5.0.0",
     "yaml": "^2.3.4"
   },
