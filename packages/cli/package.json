@@ -1,0 +1,24 @@
+{
+  "name": "@m2sql/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Command-line interface for m2sql project tracker",
+  "bin": {
+    "m2sql": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@m2sql/parser": "workspace:*",
+    "@m2sql/sqlite": "workspace:*",
+    "@m2sql/model": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.3"
+  }
+}

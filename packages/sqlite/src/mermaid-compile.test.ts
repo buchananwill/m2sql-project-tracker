@@ -5,6 +5,8 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { compileToSqlite } from './compile.js';
 import { parseMermaid } from '@m2sql/parser';
 
@@ -98,6 +100,57 @@ namespace task {
 
     const tagRows = db.exec('SELECT COUNT(*) FROM tag');
     assert.strictEqual(tagRows[0]?.values[0]?.[0], 0);
+
+    db.close();
+  });
+
+  test('compiles project-planner.mmd example to database file', async () => {
+    // Read the example mermaid file
+    const examplePath = join(process.cwd(), '..', '..', 'examples', 'project-planner.mmd');
+    const content = readFileSync(examplePath, 'utf-8');
+
+    // Parse
+    const parseResult = parseMermaid(content);
+    assert.strictEqual(parseResult.databases.length, 1);
+    assert.strictEqual(parseResult.errors.length, 0, 'Should have no parse errors');
+
+    const database = parseResult.databases[0];
+    assert.strictEqual(database?.name, 'Piste Perfect Project Planner');
+    assert.strictEqual(database?.tables.length, 3); // task, task_part_of, task_depends_on
+
+    // Compile to SQLite
+    const db = await compileToSqlite(parseResult.databases);
+
+    // Verify tables were created
+    const tables = db.exec(`
+      SELECT name FROM sqlite_master
+      WHERE type='table'
+      ORDER BY name
+    `);
+    const tableNames = tables[0]?.values.map(row => row[0]) || [];
+    assert.ok(tableNames.includes('task'));
+    assert.ok(tableNames.includes('task_part_of'));
+    assert.ok(tableNames.includes('task_depends_on'));
+
+    // Verify task rows
+    const taskRows = db.exec('SELECT COUNT(*) FROM task');
+    assert.ok((taskRows[0]?.values[0]?.[0] as number) > 0, 'Should have task rows');
+
+    // Verify junction table rows (relationships)
+    const partOfRows = db.exec('SELECT COUNT(*) FROM task_part_of');
+    assert.ok((partOfRows[0]?.values[0]?.[0] as number) > 0, 'Should have part_of relationships');
+
+    const dependsOnRows = db.exec('SELECT COUNT(*) FROM task_depends_on');
+    assert.ok((dependsOnRows[0]?.values[0]?.[0] as number) > 0, 'Should have depends_on relationships');
+
+    // Export to file
+    const outputPath = join(process.cwd(), '..', '..', 'project-planner.db');
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    writeFileSync(outputPath, buffer);
+
+    console.log(`\n✓ Database saved to: ${outputPath}`);
+    console.log('  You can inspect it with: sqlite3 project-planner.db');
 
     db.close();
   });

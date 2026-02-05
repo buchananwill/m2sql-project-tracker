@@ -68,8 +68,8 @@ export function validateModel(databases: Database[]): ValidationResult {
     for (const table of database.tables) {
       for (const row of table.rows) {
         // Check if this is a junction table row
-        const lhsAnchor = row.columns._lhs_anchor;
-        const rhsAnchor = row.columns._rhs_anchor;
+        const lhsAnchor = row.columns['_lhs_anchor'];
+        const rhsAnchor = row.columns['_rhs_anchor'];
 
         if (lhsAnchor !== undefined && rhsAnchor !== undefined) {
           // This is a junction table row - validate anchors exist
@@ -126,7 +126,7 @@ function detectHierarchicalCycles(
       // Check if this is a hierarchical junction table (e.g., task_part_of)
       const isHierarchicalJunctionTable = table.name.endsWith('_part_of');
       const hasJunctionColumns = table.rows.some(
-        r => r.columns._lhs_anchor !== undefined && r.columns._rhs_anchor !== undefined
+        r => r.columns['_lhs_anchor'] !== undefined && r.columns['_rhs_anchor'] !== undefined
       );
 
       if (isHierarchicalJunctionTable && hasJunctionColumns) {
@@ -135,8 +135,8 @@ function detectHierarchicalCycles(
         // So _lhs_anchor is parent, _rhs_anchor is child
         // Build map: child -> [parents]
         for (const row of table.rows) {
-          const childAnchor = row.columns._rhs_anchor as string;
-          const parentAnchor = row.columns._lhs_anchor as string;
+          const childAnchor = row.columns['_rhs_anchor'] as string;
+          const parentAnchor = row.columns['_lhs_anchor'] as string;
 
           if (childAnchor && parentAnchor) {
             const existing = parentMap.get(childAnchor) || [];
@@ -206,7 +206,7 @@ function detectDependencyCycles(
       // Check if this is a dependency junction table (e.g., task_depends_on)
       const isDependencyJunctionTable = table.name.endsWith('_depends_on');
       const hasJunctionColumns = table.rows.some(
-        r => r.columns._lhs_anchor !== undefined && r.columns._rhs_anchor !== undefined
+        r => r.columns['_lhs_anchor'] !== undefined && r.columns['_rhs_anchor'] !== undefined
       );
 
       if (isDependencyJunctionTable && hasJunctionColumns) {
@@ -215,8 +215,8 @@ function detectDependencyCycles(
         // So _lhs_anchor is dependent, _rhs_anchor is prerequisite
         // Build map: dependent -> [prerequisites]
         for (const row of table.rows) {
-          const dependentAnchor = row.columns._lhs_anchor as string;
-          const prerequisiteAnchor = row.columns._rhs_anchor as string;
+          const dependentAnchor = row.columns['_lhs_anchor'] as string;
+          const prerequisiteAnchor = row.columns['_rhs_anchor'] as string;
 
           if (dependentAnchor && prerequisiteAnchor) {
             const existing = depsMap.get(dependentAnchor) || [];

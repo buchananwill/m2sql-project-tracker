@@ -88,19 +88,21 @@ function buildAnchorToIdMap(
   for (const table of tables) {
     if (table.rows.length === 0) continue;
 
-    const pkCol = table.schema.primaryKey[0];
-    if (!pkCol) continue;
+    const pkCol = table.schema.primaryKey[0] || 'id';
 
-    const hasAnchorCol = table.schema.columns.some(c => c.name === 'anchor');
-    if (!hasAnchorCol) continue;
-
-    const rows = allRows(db, `SELECT ${pkCol}, anchor FROM ${table.schema.name}`);
-    for (const row of rows) {
-      const id = row[pkCol] as number;
-      const anchor = row['anchor'] as string;
-      if (id !== undefined && anchor) {
-        map.set(anchor, id);
+    // Try to query anchor column - it may have been auto-injected even if not in schema
+    try {
+      const rows = allRows(db, `SELECT ${pkCol}, anchor FROM ${table.schema.name}`);
+      for (const row of rows) {
+        const id = row[pkCol] as number;
+        const anchor = row['anchor'] as string;
+        if (id !== undefined && anchor) {
+          map.set(anchor, id);
+        }
       }
+    } catch {
+      // Table doesn't have anchor column - skip it
+      continue;
     }
   }
 
@@ -185,17 +187,28 @@ export async function compileToSqlite(
       if (table.rawSql) {
         let sql = table.rawSql;
 
+        // Check if this is a junction table (has _lhs_anchor and _rhs_anchor columns)
+        const isJunctionTable = table.rows.some(
+          r => r.columns['_lhs_anchor'] !== undefined && r.columns['_rhs_anchor'] !== undefined
+        );
+
         // Check if auto-managed columns need to be injected
         const hasId = table.schema.columns.some(c => c.name === 'id' || c.primaryKey);
         const hasName = table.schema.columns.some(c => c.name === 'name');
         const hasAnchor = table.schema.columns.some(c => c.name === 'anchor');
 
+        // Junction tables have composite PKs - don't inject auto-managed columns
         // If missing id/name/anchor and table will have rows, inject them
-        if (table.rows.length > 0 && (!hasId || !hasName || !hasAnchor)) {
+        if (table.rows.length > 0 && !isJunctionTable && (!hasId || !hasName || !hasAnchor)) {
           // Parse the CREATE TABLE to inject columns at the beginning
           const match = sql.match(/^CREATE\s+TABLE\s+(\w+)\s*\(([\s\S]*)\);?\s*$/i);
           if (match) {
             const [, tableName, innerContent] = match;
+
+            if (!innerContent) {
+              throw new Error(`Failed to parse CREATE TABLE statement for ${tableName}`);
+            }
+
             const newColumns: string[] = [];
 
             if (!hasId) {
@@ -208,7 +221,6 @@ export async function compileToSqlite(
               newColumns.push('anchor TEXT UNIQUE');
             }
 
-            // TODO @Claude: handle the case when innerContent is undefined.
             if (newColumns.length > 0) {
               sql = `CREATE TABLE ${tableName} (\n  ${newColumns.join(',\n  ')},\n  ${innerContent.trim()}\n)`;
             }

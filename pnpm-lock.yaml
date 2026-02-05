@@ -15,6 +15,28 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/cli:
+    dependencies:
+      '@m2sql/model':
+        specifier: workspace:*
+        version: link:../model
+      '@m2sql/parser':
+        specifier: workspace:*
+        version: link:../parser
+      '@m2sql/sqlite':
+        specifier: workspace:*
+        version: link:../sqlite
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.19.9
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   packages/model:
     devDependencies:
       typescript:
@@ -372,6 +394,9 @@ packages:
 
   '@types/node@20.19.31':
     resolution: {integrity: sha512-5jsi0wpncvTD33Sh1UCgacK37FFwDn+EG7wCmEvs62fCvBL+n8/76cAYDok21NF6+jaVWIqKwCZyX7Vbu8eB3A==}
+
+  '@types/node@22.19.9':
+    resolution: {integrity: sha512-PD03/U8g1F9T9MI+1OBisaIARhSzeidsUjQaf51fOxrfjeiKN9bLVO06lHuHYjxdnqLWJijJHfqXPSJri2EM2A==}
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
@@ -1107,6 +1132,10 @@ snapshots:
   '@types/ms@2.1.0': {}
 
   '@types/node@20.19.31':
+    dependencies:
+      undici-types: 6.21.0
+
+  '@types/node@22.19.9':
     dependencies:
       undici-types: 6.21.0
 
