@@ -1,14 +1,22 @@
 /**
  * Arrow parsing and relationship resolution for Mermaid classDiagram.
- * Maps arrows to junction tables and validates foreign key relationships.
+ * Creates junction table rows from arrow declarations.
  */
 
-import type { TableSchema, RelationshipEntry } from '@m2sql/model';
+import type { TableSchema, Row, ColumnValues } from '@m2sql/model';
 import type { ArrowMapping } from './mermaid-header.js';
+import { createSlugger, generateAnchor } from './slugify.js';
 
 export interface ParsedArrow {
   lhsAnchor: string;
   arrowToken: string;
+  rhsAnchor: string;
+  label?: string;
+}
+
+export interface JunctionTableRow {
+  junctionTable: string;
+  lhsAnchor: string;
   rhsAnchor: string;
   label?: string;
 }
@@ -35,19 +43,19 @@ export function parseArrow(line: string): ParsedArrow | null {
 }
 
 /**
- * Resolve arrows to relationship entries using explicit arrow mappings.
- * Uses FK column names to determine relationship directionality.
+ * Resolve arrows to junction table rows using explicit arrow mappings.
+ * Creates first-class rows for junction tables.
  */
-export function resolveArrowsToRelationships(
+export function resolveArrowsToJunctionRows(
   arrows: string[],
   arrowMappings: Map<string, ArrowMapping>,
   anchorToTable: Map<string, string>,
   schemas: Map<string, TableSchema>
 ): {
-  relationships: Map<string, RelationshipEntry[]>; // anchor -> relationships
+  junctionRows: JunctionTableRow[];
   errors: string[];
 } {
-  const relationships = new Map<string, RelationshipEntry[]>();
+  const junctionRows: JunctionTableRow[] = [];
   const errors: string[] = [];
 
   for (const arrowLine of arrows) {
@@ -103,11 +111,10 @@ export function resolveArrowsToRelationships(
       continue;
     }
 
-    // Determine which anchor connects to which FK column
+    // Validate FK tables match
     const leftFkTable = leftFkCol.references.table;
     const rightFkTable = rightFkCol.references.table;
 
-    // Validate FK tables match
     if (leftFkTable !== lhsTable && leftFkTable !== rhsTable) {
       errors.push(`FK column ${leftColumn} references ${leftFkTable}, but arrow connects ${lhsTable} and ${rhsTable}`);
       continue;
@@ -118,38 +125,14 @@ export function resolveArrowsToRelationships(
       continue;
     }
 
-    // Determine relationship direction based on FK column references
-    // If leftColumn references lhsTable, then LHS connects to leftColumn
-    // If rightColumn references rhsTable, then RHS connects to rightColumn
-    // The relationship points FROM the entity TO the entity referenced by the opposite column
-
-    let sourceAnchor: string;
-    let targetAnchor: string;
-
-    if (leftFkTable === lhsTable && rightFkTable === rhsTable) {
-      // LHS -> leftColumn, RHS -> rightColumn
-      // Relationship: RHS points to LHS (following UML convention)
-      sourceAnchor = rhsAnchor;
-      targetAnchor = lhsAnchor;
-    } else if (leftFkTable === rhsTable && rightFkTable === lhsTable) {
-      // RHS -> leftColumn, LHS -> rightColumn
-      // Relationship: LHS points to RHS
-      sourceAnchor = lhsAnchor;
-      targetAnchor = rhsAnchor;
-    } else {
-      errors.push(`Cannot determine relationship direction for ${lhsAnchor} ${arrowToken} ${rhsAnchor}`);
-      continue;
-    }
-
-    // Create unidirectional relationship
-    const sourceRelationships = relationships.get(sourceAnchor) || [];
-    sourceRelationships.push({
-      targetAnchor,
-      displayText: label || targetAnchor,
-      role: junctionTable,
+    // Create junction table row (no interpretation of direction needed)
+    junctionRows.push({
+      junctionTable,
+      lhsAnchor,
+      rhsAnchor,
+      label,
     });
-    relationships.set(sourceAnchor, sourceRelationships);
   }
 
-  return { relationships, errors };
+  return { junctionRows, errors };
 }

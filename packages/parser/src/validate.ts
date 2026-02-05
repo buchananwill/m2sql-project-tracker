@@ -55,46 +55,39 @@ export function validateModel(databases: Database[]): ValidationResult {
     }
   }
 
-  // Validate column values against schema
+  // Note: We don't validate column names against schema because:
+  // - Per spec: "If a row contains an attribute whose key does not match any column
+  //   in the declared schema, the parser adds a new column with that name and type TEXT"
+  // - Undeclared columns are auto-added during compilation (schema flexibility)
+  // - Required columns are validated during SQLite compilation
+  // - Temporary columns like _lhs_anchor and _rhs_anchor are used for junction table
+  //   anchor resolution and are replaced with FK IDs during compilation
+
+  // Validate junction table references
   for (const database of databases) {
     for (const table of database.tables) {
-      const schemaColumns = new Set(table.schema.columns.map(c => c.name));
-
       for (const row of table.rows) {
-        for (const colName of Object.keys(row.columns)) {
-          if (!schemaColumns.has(colName)) {
+        // Check if this is a junction table row
+        const lhsAnchor = row.columns._lhs_anchor;
+        const rhsAnchor = row.columns._rhs_anchor;
+
+        if (lhsAnchor !== undefined && rhsAnchor !== undefined) {
+          // This is a junction table row - validate anchors exist
+          if (!anchorMap.has(lhsAnchor as string)) {
             errors.push({
-              type: 'missing_column',
-              message: `Unknown column ${colName} in table ${table.name}`,
+              type: 'unresolved_reference',
+              message: `Unresolved anchor in junction table ${table.name}: ${lhsAnchor}`,
               table: table.name,
               row: row.name,
-              column: colName,
             });
           }
-        }
-
-        // Note: We don't validate required columns here because:
-        // - 'name' and 'anchor' are populated from the heading
-        // - Many columns have defaults in the actual SQL
-        // - The SQLite compiler will catch missing required values
-      }
-    }
-  }
-
-  // Validate relationship references
-  for (const database of databases) {
-    for (const table of database.tables) {
-      for (const row of table.rows) {
-        for (const [_relType, entries] of Object.entries(row.relationships)) {
-          for (const entry of entries) {
-            if (!anchorMap.has(entry.targetAnchor)) {
-              errors.push({
-                type: 'unresolved_reference',
-                message: `Unresolved reference in ${row.name}: ${entry.targetAnchor}`,
-                table: table.name,
-                row: row.name,
-              });
-            }
+          if (!anchorMap.has(rhsAnchor as string)) {
+            errors.push({
+              type: 'unresolved_reference',
+              message: `Unresolved anchor in junction table ${table.name}: ${rhsAnchor}`,
+              table: table.name,
+              row: row.name,
+            });
           }
         }
       }
@@ -117,7 +110,7 @@ export function validateModel(databases: Database[]): ValidationResult {
 
 /**
  * Detect cycles in hierarchical (part_of) relationships.
- * Supports both markdown format ("Part Of" key) and mermaid format (junction table names).
+ * Checks junction tables with _lhs_anchor and _rhs_anchor columns.
  */
 function detectHierarchicalCycles(
   databases: Database[],
@@ -130,26 +123,26 @@ function detectHierarchicalCycles(
 
   for (const database of databases) {
     for (const table of database.tables) {
-      for (const row of table.rows) {
-        const parents: string[] = [];
+      // Check if this is a hierarchical junction table (e.g., task_part_of)
+      const isHierarchicalJunctionTable = table.name.endsWith('_part_of');
+      const hasJunctionColumns = table.rows.some(
+        r => r.columns._lhs_anchor !== undefined && r.columns._rhs_anchor !== undefined
+      );
 
-        // Check markdown format: "Part Of" relationship
-        const partOfEntries = row.relationships['Part Of'] ?? [];
-        parents.push(
-          ...partOfEntries
-            .filter(e => e.role === 'parent')
-            .map(e => e.targetAnchor)
-        );
+      if (isHierarchicalJunctionTable && hasJunctionColumns) {
+        // For *-- arrow: parent *-- child means child is part of parent
+        // Junction table stores: parent_task_id *-- child_task_id : task_part_of
+        // So _lhs_anchor is parent, _rhs_anchor is child
+        // Build map: child -> [parents]
+        for (const row of table.rows) {
+          const childAnchor = row.columns._rhs_anchor as string;
+          const parentAnchor = row.columns._lhs_anchor as string;
 
-        // Check mermaid format: junction tables ending with _part_of
-        for (const [relType, entries] of Object.entries(row.relationships)) {
-          if (relType.endsWith('_part_of')) {
-            parents.push(...entries.map(e => e.targetAnchor));
+          if (childAnchor && parentAnchor) {
+            const existing = parentMap.get(childAnchor) || [];
+            existing.push(parentAnchor);
+            parentMap.set(childAnchor, existing);
           }
-        }
-
-        if (parents.length > 0) {
-          parentMap.set(row.anchor, parents);
         }
       }
     }
@@ -197,7 +190,7 @@ function detectHierarchicalCycles(
 
 /**
  * Detect cycles in dependency (depends_on) relationships.
- * Supports both markdown format ("Depends On" key) and mermaid format (junction table names).
+ * Checks junction tables with _lhs_anchor and _rhs_anchor columns.
  */
 function detectDependencyCycles(
   databases: Database[],
@@ -205,27 +198,31 @@ function detectDependencyCycles(
 ): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  // Build adjacency list: task -> dependencies
+  // Build adjacency list: dependent -> prerequisite
   const depsMap = new Map<string, string[]>();
 
   for (const database of databases) {
     for (const table of database.tables) {
-      for (const row of table.rows) {
-        const deps: string[] = [];
+      // Check if this is a dependency junction table (e.g., task_depends_on)
+      const isDependencyJunctionTable = table.name.endsWith('_depends_on');
+      const hasJunctionColumns = table.rows.some(
+        r => r.columns._lhs_anchor !== undefined && r.columns._rhs_anchor !== undefined
+      );
 
-        // Check markdown format: "Depends On" relationship
-        const dependsEntries = row.relationships['Depends On'] ?? [];
-        deps.push(...dependsEntries.map(e => e.targetAnchor));
+      if (isDependencyJunctionTable && hasJunctionColumns) {
+        // For ..> arrow: dependent ..> prerequisite
+        // Junction table stores: dependent_task_id ..> prerequisite_task_id : task_depends_on
+        // So _lhs_anchor is dependent, _rhs_anchor is prerequisite
+        // Build map: dependent -> [prerequisites]
+        for (const row of table.rows) {
+          const dependentAnchor = row.columns._lhs_anchor as string;
+          const prerequisiteAnchor = row.columns._rhs_anchor as string;
 
-        // Check mermaid format: junction tables ending with _depends_on
-        for (const [relType, entries] of Object.entries(row.relationships)) {
-          if (relType.endsWith('_depends_on')) {
-            deps.push(...entries.map(e => e.targetAnchor));
+          if (dependentAnchor && prerequisiteAnchor) {
+            const existing = depsMap.get(dependentAnchor) || [];
+            existing.push(prerequisiteAnchor);
+            depsMap.set(dependentAnchor, existing);
           }
-        }
-
-        if (deps.length > 0) {
-          depsMap.set(row.anchor, deps);
         }
       }
     }

@@ -253,8 +253,10 @@ EAR *-- CGL
     const db = result.databases[0];
     assert.strictEqual(db?.name, 'Project Planner');
 
-    assert.strictEqual(db?.tables.length, 1);
-    const taskTable = db?.tables[0];
+    assert.strictEqual(db?.tables.length, 2); // task + task_part_of junction
+    const taskTable = db?.tables.find(t => t.name === 'task');
+    const junctionTable = db?.tables.find(t => t.name === 'task_part_of');
+
     assert.strictEqual(taskTable?.name, 'task');
     assert.strictEqual(taskTable?.rows.length, 2);
 
@@ -263,11 +265,11 @@ EAR *-- CGL
     assert.strictEqual(earRow?.columns["task_type"], 'milestone');
     assert.strictEqual(earRow?.columns["hours_estimate"], 2000);
 
-    // Check relationships - CGL (child) should point to EAR (parent)
-    const cglRow = taskTable?.rows.find(r => r.anchor === 'CGL');
-    assert.ok(cglRow?.relationships["task_part_of"]);
-    assert.strictEqual(cglRow?.relationships["task_part_of"]?.length, 1);
-    assert.strictEqual(cglRow?.relationships["task_part_of"]?.[0]?.targetAnchor, 'EAR');
+    // Check junction table has relationship row
+    assert.strictEqual(junctionTable?.rows.length, 1);
+    const junctionRow = junctionTable?.rows[0];
+    assert.strictEqual(junctionRow?.columns._lhs_anchor, 'EAR');
+    assert.strictEqual(junctionRow?.columns._rhs_anchor, 'CGL');
   });
 
   test('handles missing name attribute', () => {

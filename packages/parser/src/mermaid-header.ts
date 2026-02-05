@@ -34,7 +34,7 @@ export function parseHeader(content: string): ParsedHeader {
   const lines = content.split('\n');
   const schemas = new Map<string, TableSchema>();
   const rawSql = new Map<string, string>();
-  const arrowMappings = new Map<string, string>();
+  const arrowMappings = new Map<string, ArrowMapping>();
 
   let currentSql = '';
   let insideFrontmatter = false;

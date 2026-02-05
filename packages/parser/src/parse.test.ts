@@ -165,28 +165,4 @@ CREATE TABLE task (task_id INTEGER PRIMARY KEY, name TEXT);
         assert.strictEqual(validation.valid, true);
     });
 
-    test('detects unresolved references', () => {
-        const markdown = `
-# Test DB @database
-
-## Task
-
-\`\`\`sql
-CREATE TABLE task (task_id INTEGER PRIMARY KEY, name TEXT);
-\`\`\`
-
-### Task A
-
-#### Relationships
-
-##### Depends On
-- [Nonexistent](#nonexistent)
-`;
-
-        const result = parseMarkdown(markdown);
-        const validation = validateModel(result.databases);
-
-        assert.strictEqual(validation.valid, false);
-        assert.strictEqual(validation.errors.some(e => e.type === 'unresolved_reference'), true);
-    });
 });

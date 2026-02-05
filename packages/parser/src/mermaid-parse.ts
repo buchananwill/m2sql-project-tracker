@@ -7,13 +7,12 @@ import { createSlugger, generateAnchor } from './slugify.js';
 import { extractFrontmatter } from './mermaid-frontmatter.js';
 import { parseHeader } from './mermaid-header.js';
 import { parseClassDiagramBody } from './mermaid-body.js';
-import { resolveArrowsToRelationships } from './mermaid-arrows.js';
+import { resolveArrowsToJunctionRows } from './mermaid-arrows.js';
 import type {
   ParseResult,
   Database,
   Table,
   Row,
-  Relationships,
 } from '@m2sql/model';
 
 /**
@@ -48,8 +47,8 @@ export function parseMermaid(content: string): ParseResult {
     }
   }
 
-  // Phase 5: Parse arrows and resolve relationships
-  const { relationships: resolvedRelationships, errors: arrowErrors } = resolveArrowsToRelationships(
+  // Phase 5: Parse arrows and create junction table rows
+  const { junctionRows, errors: arrowErrors } = resolveArrowsToJunctionRows(
     arrows,
     arrowMappings,
     anchorToTable,
@@ -59,11 +58,54 @@ export function parseMermaid(content: string): ParseResult {
   // Add arrow errors to main errors list
   errors.push(...arrowErrors.map(msg => ({ message: msg })));
 
+  // Group junction rows by table
+  const junctionRowsByTable = new Map<string, typeof junctionRows>();
+  for (const jRow of junctionRows) {
+    const existing = junctionRowsByTable.get(jRow.junctionTable) || [];
+    existing.push(jRow);
+    junctionRowsByTable.set(jRow.junctionTable, existing);
+  }
+
   // Phase 6: Construct Database/Table/Row model
   const tables: Table[] = [];
   const slugger = createSlugger();
 
-  // Process all namespaces
+  // First, create tables for all schemas (including junction tables)
+  for (const [tableName, schema] of schemas) {
+    // Check if this table has a namespace
+    if (!namespaces.has(tableName)) {
+      // No namespace - likely a junction table
+      // Create rows from junction row data
+      const jRows = junctionRowsByTable.get(tableName) || [];
+      const rows: Row[] = [];
+
+      for (const jRow of jRows) {
+        // Store anchors directly - compiler will resolve to IDs
+        const row: Row = {
+          name: `${jRow.lhsAnchor} → ${jRow.rhsAnchor}`,
+          anchor: generateAnchor(slugger, `${tableName}_${jRow.lhsAnchor}_${jRow.rhsAnchor}`),
+          columns: {
+            _lhs_anchor: jRow.lhsAnchor,  // Temp column for LHS anchor
+            _rhs_anchor: jRow.rhsAnchor,  // Temp column for RHS anchor
+            ...(jRow.label && schema.columns.some(c => c.name === 'label') ? { label: jRow.label } : {}),
+          },
+          relationships: {},
+        };
+
+        rows.push(row);
+      }
+
+      const table: Table = {
+        name: tableName,
+        schema,
+        rawSql: rawSql.get(tableName) || '',
+        rows,
+      };
+      tables.push(table);
+    }
+  }
+
+  // Then, process namespaces with classes (data tables)
   for (const [tableName, classes] of namespaces) {
     const schema = schemas.get(tableName);
     const isTriviallyEmpty = triviallyEmptyNamespaces.has(tableName);
@@ -100,26 +142,13 @@ export function parseMermaid(content: string): ParseResult {
     const rows: Row[] = [];
 
     for (const cls of classes) {
-      // Get relationships for this row
-      const rowRelationships: Relationships = {};
-      const relEntries = resolvedRelationships.get(cls.anchor) || [];
-
-      // Group by role (junction table name)
-      for (const entry of relEntries) {
-        const role = entry.role || 'unknown';
-        if (!rowRelationships[role]) {
-          rowRelationships[role] = [];
-        }
-        rowRelationships[role]!.push(entry);
-      }
-
-      // Create row
+      // Create row (no nested relationships)
       const row: Row = {
         name: cls.name,
         anchor: cls.anchor,
         pk: cls.pk,
         columns: cls.columns,
-        relationships: rowRelationships,
+        relationships: {}, // Relationships are now separate junction table rows
       };
 
       rows.push(row);
