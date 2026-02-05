@@ -45,8 +45,8 @@ hours_estimate: 2000
     const { name, pk, columns } = parseClassAttributes(body);
     assert.strictEqual(name, 'Early Access Release');
     assert.strictEqual(pk, undefined);
-    assert.strictEqual(columns.task_type, 'milestone');
-    assert.strictEqual(columns.hours_estimate, 2000);
+    assert.strictEqual(columns["task_type"], 'milestone');
+    assert.strictEqual(columns["hours_estimate"], 2000);
   });
 
   test('parses name and id', () => {
@@ -58,7 +58,7 @@ status: active
     const { name, pk, columns } = parseClassAttributes(body);
     assert.strictEqual(name, 'Some Task');
     assert.strictEqual(pk, 42);
-    assert.strictEqual(columns.status, 'active');
+    assert.strictEqual(columns["status"], 'active');
   });
 
   test('handles null values', () => {
@@ -68,7 +68,7 @@ description: null
 `;
     const { name, columns } = parseClassAttributes(body);
     assert.strictEqual(name, 'Task');
-    assert.strictEqual(columns.description, null);
+    assert.strictEqual(columns["description"], null);
   });
 
   test('handles quoted strings', () => {
@@ -78,7 +78,7 @@ label: "quoted value"
 `;
     const { name, columns } = parseClassAttributes(body);
     assert.strictEqual(name, 'Task');
-    assert.strictEqual(columns.label, 'quoted value');
+    assert.strictEqual(columns["label"], 'quoted value');
   });
 });
 
@@ -260,14 +260,14 @@ EAR *-- CGL
 
     const earRow = taskTable?.rows.find(r => r.anchor === 'EAR');
     assert.strictEqual(earRow?.name, 'Early Access Release');
-    assert.strictEqual(earRow?.columns.task_type, 'milestone');
-    assert.strictEqual(earRow?.columns.hours_estimate, 2000);
+    assert.strictEqual(earRow?.columns["task_type"], 'milestone');
+    assert.strictEqual(earRow?.columns["hours_estimate"], 2000);
 
     // Check relationships - CGL (child) should point to EAR (parent)
     const cglRow = taskTable?.rows.find(r => r.anchor === 'CGL');
-    assert.ok(cglRow?.relationships.task_part_of);
-    assert.strictEqual(cglRow?.relationships.task_part_of?.length, 1);
-    assert.strictEqual(cglRow?.relationships.task_part_of?.[0]?.targetAnchor, 'EAR');
+    assert.ok(cglRow?.relationships["task_part_of"]);
+    assert.strictEqual(cglRow?.relationships["task_part_of"]?.length, 1);
+    assert.strictEqual(cglRow?.relationships["task_part_of"]?.[0]?.targetAnchor, 'EAR');
   });
 
   test('handles missing name attribute', () => {
