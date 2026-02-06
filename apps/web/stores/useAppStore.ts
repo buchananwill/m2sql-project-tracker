@@ -16,19 +16,12 @@ export type AppStore = DataSlice & ValidationSlice & SyncSlice & UISlice;
 // Create the combined store with all slices
 export const useAppStore = create<AppStore>()(
   devtools(
-    persist(
-      immer((...a) => ({
-        ...createDataSlice(...a),
-        ...createValidationSlice(...a),
-        ...createSyncSlice(...a),
-        ...createUISlice(...a),
-      })),
-      {
-        name: 'm2sql-ui-storage',
-        // Only persist UI state to localStorage
-        partialize: (state) => ({ uiState: state.uiState }),
-      }
-    ),
+    immer((...a) => ({
+      ...createDataSlice(...a),
+      ...createValidationSlice(...a),
+      ...createSyncSlice(...a),
+      ...createUISlice(...a),
+    })),
     { name: 'm2sql-store' }
   )
 );

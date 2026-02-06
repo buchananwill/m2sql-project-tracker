@@ -10,7 +10,14 @@ import {
   Text,
   Stack,
   Badge,
+  Box,
 } from '@mantine/core';
+import {
+  Panel,
+  Group as PanelGroup,
+  Separator as PanelResizeHandle,
+  usePanelRef,
+} from 'react-resizable-panels';
 import { IOControls } from '@/components/IOControls';
 import { MermaidEditor } from '@/components/MermaidEditor';
 import { ValidationDisplay } from '@/components/ValidationDisplay';
@@ -26,7 +33,22 @@ export default function Home() {
 
   // UI state for sidebar
   const sidebarCollapsed = useAppStore((state) => state.uiState.sidebarCollapsed);
-  const toggleSidebar = useAppStore((state) => state.toggleSidebar);
+  const setSidebarCollapsed = useAppStore((state) => state.setSidebarCollapsed);
+
+  // Panel ref for imperative control
+  const leftPanelRef = usePanelRef();
+
+  const handleToggleSidebar = useCallback(() => {
+    if (leftPanelRef.current) {
+      if (sidebarCollapsed) {
+        leftPanelRef.current.expand();
+        setSidebarCollapsed(false);
+      } else {
+        leftPanelRef.current.collapse();
+        setSidebarCollapsed(true);
+      }
+    }
+  }, [sidebarCollapsed, setSidebarCollapsed, leftPanelRef.current]);
 
   const handleFileLoad = useCallback(
     (content: string, filename: string) => {
@@ -42,21 +64,13 @@ export default function Home() {
   );
 
   return (
-    <AppShell
-      header={{ height: 60 }}
-      navbar={{
-        width: 400,
-        breakpoint: 'sm',
-        collapsed: { mobile: sidebarCollapsed, desktop: sidebarCollapsed },
-      }}
-      padding="md"
-    >
+    <AppShell header={{ height: 60 }} padding={0}>
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group>
             <Burger
               opened={!sidebarCollapsed}
-              onClick={toggleSidebar}
+              onClick={handleToggleSidebar}
               size="sm"
             />
             <Title order={2}>m2SQL Project Tracker</Title>
@@ -73,37 +87,79 @@ export default function Home() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="md">
-        <Stack gap="lg" style={{ height: '100%', overflow: 'auto' }}>
-          <IOControls onFileLoad={handleFileLoad} />
+      <AppShell.Main style={{ height: 'calc(100vh - 60px)', padding: 0 }}>
+        <PanelGroup
+          orientation="horizontal"
+          style={{ width: '100%', height: '100%', display: 'flex' }}
+        >
+          <Panel
+            id="left-panel"
+            panelRef={leftPanelRef}
+            defaultSize={'30%'}
+            minSize={'15%'}
+            maxSize={'70%'}
+            collapsible
+            collapsedSize={0}
+            style={{ overflow: 'hidden' }}
+            onResize={(size) => {
+              // Update store when panel size changes
+              const isCollapsed = size.inPixels === 0;
+              if (isCollapsed !== sidebarCollapsed) {
+                setSidebarCollapsed(isCollapsed);
+              }
+            }}
+          >
+            <Box p="md" style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+              <Stack gap="lg">
+                <IOControls onFileLoad={handleFileLoad} />
 
-          <MermaidEditor />
+                <MermaidEditor />
 
-          <ValidationDisplay />
+                <ValidationDisplay />
 
-          {database && (
-            <Paper p="md" withBorder>
-              <Stack gap="xs">
-                <Text size="sm" fw={500}>
-                  Database Info
-                </Text>
-                <Text size="sm" c="dimmed">
-                  Name: {database.name}
-                </Text>
-                <Text size="sm" c="dimmed">
-                  Tables: {database.tables.length}
-                </Text>
-                <Text size="sm" c="dimmed">
-                  Arrow Mappings: {database.arrowMappings?.length || 0}
-                </Text>
+                {database && (
+                  <Paper p="md" withBorder>
+                    <Stack gap="xs">
+                      <Text size="sm" fw={500}>
+                        Database Info
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        Name: {database.name}
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        Tables: {database.tables.length}
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        Arrow Mappings: {database.arrowMappings?.length || 0}
+                      </Text>
+                    </Stack>
+                  </Paper>
+                )}
               </Stack>
-            </Paper>
-          )}
-        </Stack>
-      </AppShell.Navbar>
+            </Box>
+          </Panel>
 
-      <AppShell.Main>
-        <DiagramRenderer />
+          <PanelResizeHandle
+            style={{
+              width: '4px',
+              backgroundColor: 'var(--mantine-color-gray-4)',
+              cursor: 'col-resize',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--mantine-color-blue-5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--mantine-color-gray-4)';
+            }}
+          />
+
+          <Panel id="right-panel" defaultSize={'70%'} minSize={'20%'}>
+            <Box style={{ width: '100%', height: '100%', padding: '1rem' }}>
+              <DiagramRenderer />
+            </Box>
+          </Panel>
+        </PanelGroup>
       </AppShell.Main>
     </AppShell>
   );
