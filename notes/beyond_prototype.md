@@ -36,3 +36,11 @@ This demonstrates the overall concept effectively, but is short of a truly usefu
       1. Serial dependencies create ranking along one axis
       2. Compositional relationships create ranking along the other axis
       3. General principle: for up to two chosen relationships, each is used to rank along a specific axis for "critical path" style layout
+6. Improve layout of Web UI.
+   1. Collect together IO buttons.
+   2. Make the text editor box resizeable - currently only three lines are ever visible
+   3. Split the Reactflow renderer and everything else into two separate containers
+      1. Graph on right, IO etc, on left.
+      2. Either left or right container can be collapsed/hidden.
+      3. Split point of pane can be adjusted to show more of left or right (this should be a separate control from collapsing, which restores wherever the split point is set)
+   4. Mantine has tools to achieve all these UI elements
