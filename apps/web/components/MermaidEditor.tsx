@@ -70,36 +70,23 @@ export function MermaidEditor() {
   }, [debouncedValue, mermaidText]);
 
   return (
-    <Box
-      style={{
-        resize: 'vertical',
-        overflow: 'auto',
-        height: '300px',
-        minHeight: '200px',
-        maxHeight: '600px',
-      }}
-    >
-      <Paper shadow="sm" p="md" withBorder style={{ height: '100%' }}>
-        <Textarea
-          label="Mermaid Diagram"
-          placeholder="Paste or type your Mermaid classDiagram..."
-          value={localValue}
-          onChange={(e) => setLocalValue(e.currentTarget.value)}
-          styles={{
-            input: {
-              fontFamily: 'monospace',
-              fontSize: '0.9rem',
-              height: 'calc(100% - 28px)', // Account for label height
-            },
-            root: {
-              height: '100%',
-            },
-            wrapper: {
-              height: '100%',
-            },
-          }}
-        />
-      </Paper>
-    </Box>
+    <Paper shadow="sm" withBorder p="md">
+      <Textarea
+        label="Mermaid Diagram"
+        placeholder="Paste or type your Mermaid classDiagram..."
+        value={localValue}
+        onChange={(e) => setLocalValue(e.currentTarget.value)}
+        styles={{
+          input: {
+            fontFamily: 'monospace',
+            fontSize: '0.9rem',
+            resize: 'vertical',
+            minHeight: '300px',
+            maxHeight: '600px',
+            overflow: 'auto',
+          },
+        }}
+      />
+    </Paper>
   );
 }
