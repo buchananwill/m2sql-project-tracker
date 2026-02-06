@@ -123,20 +123,20 @@ Tests use Node.js built-in test runner with `tsx` for TypeScript support: `node 
 
 ### Completed Packages
 
-| Package         | Status     | Tests          | Purpose                                     |
-|-----------------|------------|----------------|---------------------------------------------|
-| `@m2sql/model`  | ✅ Complete | 0 (types only) | Shared type definitions, SQL schema parsing |
-| `@m2sql/parser` | ✅ Complete | 32/32 passing  | Mermaid `.mmd` to semantic model            |
-| `@m2sql/sqlite` | ✅ Complete | 9/9 passing    | Model to SQLite compilation                 |
-| `@m2sql/cli`    | ✅ Complete | Manual testing | Command-line interface                      |
+| Package           | Status     | Tests           | Purpose                                     |
+|-------------------|------------|-----------------|---------------------------------------------|
+| `@m2sql/model`    | ✅ Complete | 0 (types only)  | Shared type definitions, SQL schema parsing |
+| `@m2sql/parser`   | ✅ Complete | 32/32 passing   | Mermaid `.mmd` to semantic model            |
+| `@m2sql/sqlite`   | ✅ Complete | 9/9 passing     | Model to SQLite compilation & extraction    |
+| `@m2sql/cli`      | ✅ Complete | Manual testing  | Command-line interface                      |
+| `@m2sql/renderer` | ✅ Complete | 13/14 passing   | Model to Mermaid export (round-trip)        |
 
 ### Not Yet Started
 
-| Package           | Purpose                                         |
-|-------------------|-------------------------------------------------|
-| `@m2sql/renderer` | Model to Mermaid export (round-trip capability) |
-| `@m2sql/supabase` | SQLite ↔ Supabase bidirectional sync            |
-| `apps/web`        | Next.js visualization dashboard                 |
+| Package           | Purpose                              |
+|-------------------|--------------------------------------|
+| `@m2sql/supabase` | SQLite ↔ Supabase bidirectional sync |
+| `apps/web`        | Next.js visualization dashboard      |
 
 ### @m2sql/model
 
@@ -186,23 +186,36 @@ cd packages/cli && pnpm link --global
 m2sql compile input.mmd -o output.db
 ```
 
+### @m2sql/renderer
+
+**Implemented:**
+- `renderToMermaid(database)` - Exports Database model to `.mmd` format
+- Arrow mapping inference from junction table schemas
+- Topological sort for row ordering (composition, dependencies, priority, created_utc)
+- YAML frontmatter generation
+- SQL header rendering with %% prefix
+- Namespace and class rendering
+- Arrow declarations via FK ID → anchor joins
+- Includes `id:` in exported rows for round-trip UPSERT
+- **13/14 tests passing** (554ms duration)
+
+**Features:**
+- Infers arrow tokens from FK column names (composition `*--`, dependency `..>`)
+- Handles empty tables gracefully
+- Escapes special characters in values
+- Optional classDef styling
+
 ## What's Next
 
 ### Priority Order
 
-1. **@m2sql/renderer** (CRITICAL - blocks everything else)
-   - Export semantic model → `.mmd` format
-   - Topological sort for row ordering
-   - Include `id:` in exported rows for round-trip UPSERT
-   - Enables: Round-trip editing, CLI export command
-
-2. **@m2sql/supabase**
+1. **@m2sql/supabase** (NEXT - enables cloud sync)
    - SQLite ↔ Supabase bidirectional sync
    - UPSERT logic with anchor-based FK resolution
    - Insert/update only (no deletion)
    - Enables: Multi-user collaboration, cloud backup
 
-3. **Web UI** (`apps/web`)
+2. **Web UI** (`apps/web`)
    - Next.js visualization dashboard
    - Graphical views: node graphs, Gantt charts, tree views
    - Supabase real-time integration

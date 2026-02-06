@@ -80,6 +80,25 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/renderer:
+    dependencies:
+      '@m2sql/model':
+        specifier: workspace:*
+        version: link:../model
+    devDependencies:
+      '@m2sql/parser':
+        specifier: workspace:*
+        version: link:../parser
+      '@m2sql/sqlite':
+        specifier: workspace:*
+        version: link:../sqlite
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.31
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
   packages/sqlite:
     dependencies:
       '@m2sql/model':

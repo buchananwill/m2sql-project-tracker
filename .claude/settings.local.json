@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(git -C \"D:\\\\coding\\\\m2sql-project-tracker\" log --oneline)",
+      "Bash(git -C \"D:\\\\coding\\\\m2sql-project-tracker\" log --format=\"%h %s\" -10)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm test)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm test:*)"
+    ]
+  }
+}

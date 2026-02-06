@@ -13,7 +13,9 @@ import type {
   TableSchema,
   ColumnDefinition,
   SqlColumnType,
+  ArrowMapping,
 } from '@m2sql/model';
+import { readArrowMappings } from './metadata.js';
 
 /** Helper: run a query and return all rows as objects */
 function allRows(db: SqlJsDatabase, sql: string, params?: unknown[]): Record<string, unknown>[] {
@@ -310,20 +312,55 @@ export function extractFromDb(
     tables.push({ name: tableName, schema, rawSql, rows });
   }
 
-  // Include junction tables (schema only, no rows)
+  // Include junction tables with their raw data (FK IDs, not anchors)
   for (const jt of junctionTables) {
+    const schema = schemas.get(jt)!;
+    const rawSql = getOriginalSql(db, jt);
+
+    const dbRows = allRows(db, `SELECT * FROM ${jt}`);
+    console.log(`[extract] ${jt}: Found ${dbRows.length} rows`);
+    if (dbRows.length > 0) {
+      console.log(`[extract] ${jt} first row:`, dbRows[0]);
+    }
+
+    const rows: Row[] = dbRows.map(dbRow => {
+      const columns: ColumnValues = {};
+      // Include ALL columns (FK columns are the PK columns in junction tables)
+      for (const [colName, value] of Object.entries(dbRow)) {
+        columns[colName] = value as string | number | null;
+      }
+      console.log(`[extract] ${jt} mapped columns:`, columns);
+
+      return {
+        name: '', // No meaningful name for junction rows
+        anchor: '', // No anchor needed
+        columns,
+        relationships: {},
+      };
+    });
+
     tables.push({
       name: jt,
-      schema: schemas.get(jt)!,
-      rawSql: getOriginalSql(db, jt),
-      rows: [],
+      schema,
+      rawSql,
+      rows,
     });
   }
+
+  // Read arrow mappings from metadata table
+  const arrowMappingsData = readArrowMappings(db);
+  const arrowMappings: ArrowMapping[] = arrowMappingsData.map(m => ({
+    junctionTable: m.junctionTable,
+    leftColumn: m.leftColumn,
+    arrowToken: m.arrowToken,
+    rightColumn: m.rightColumn,
+  }));
 
   return {
     name: databaseName,
     anchor: databaseName.toLowerCase().replace(/\s+/g, '-'),
     tables,
+    arrowMappings: arrowMappings.length > 0 ? arrowMappings : undefined,
   };
 }
 

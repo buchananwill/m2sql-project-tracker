@@ -165,11 +165,19 @@ export function parseMermaid(content: string): ParseResult {
     tables.push(table);
   }
 
-  // Phase 7: Create database
+  // Phase 7: Create database with arrow mappings
+  const arrowMappingsArray = Array.from(arrowMappings.values()).map(mapping => ({
+    junctionTable: mapping.junctionTable,
+    leftColumn: mapping.leftColumn,
+    arrowToken: mapping.arrowToken,
+    rightColumn: mapping.rightColumn,
+  }));
+
   const database: Database = {
     name: databaseName,
     anchor: generateAnchor(slugger, databaseName),
     tables,
+    arrowMappings: arrowMappingsArray,
   };
 
   return {

@@ -83,6 +83,18 @@ export interface Table {
   rows: Row[];
 }
 
+/** Arrow mapping for junction tables (Mermaid metadata) */
+export interface ArrowMapping {
+  /** Junction table name */
+  junctionTable: string;
+  /** Left FK column name */
+  leftColumn: string;
+  /** Arrow token (e.g., "*--", "..>") */
+  arrowToken: string;
+  /** Right FK column name */
+  rightColumn: string;
+}
+
 /** A database parsed from an H1 heading with **Database** marker */
 export interface Database {
   /** Database name from heading text */
@@ -91,6 +103,8 @@ export interface Database {
   anchor: string;
   /** Tables defined within this database */
   tables: Table[];
+  /** Arrow mappings for lossless round-trip (Mermaid metadata) */
+  arrowMappings?: ArrowMapping[];
 }
 
 /** Result of parsing a markdown file */

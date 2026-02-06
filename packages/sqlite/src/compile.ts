@@ -5,6 +5,7 @@
 
 import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
 import type {Database as DbModel, RowValue, Table} from '@m2sql/model';
+import { createMetadataTable, insertArrowMapping } from './metadata.js';
 
 /** Junction table configuration inferred from schema */
 interface JunctionTableConfig {
@@ -181,6 +182,9 @@ export async function compileToSqlite(
 
   db.run('PRAGMA foreign_keys = ON');
 
+  // Create metadata table for arrow mappings (lossless round-trip)
+  createMetadataTable(db);
+
   for (const database of databases) {
     // Phase 1: Create all tables (inject auto-managed columns if needed)
     for (const table of database.tables) {
@@ -331,6 +335,18 @@ export async function compileToSqlite(
           const err = e as Error;
           console.warn(`Failed to insert junction row: ${err.message}`);
         }
+      }
+    }
+
+    // Phase 6: Store arrow mapping metadata for lossless round-trip
+    if (database.arrowMappings) {
+      for (const mapping of database.arrowMappings) {
+        insertArrowMapping(db, {
+          junctionTable: mapping.junctionTable,
+          leftColumn: mapping.leftColumn,
+          arrowToken: mapping.arrowToken,
+          rightColumn: mapping.rightColumn,
+        });
       }
     }
   }
