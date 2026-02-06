@@ -5,6 +5,7 @@
 
 import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
 import type {Database as DbModel, RowValue, Table} from '@m2sql/model';
+import { generateCreateTableSql } from '@m2sql/model';
 import { createMetadataTable, insertArrowMapping } from './metadata.js';
 
 /** Junction table configuration inferred from schema */
@@ -189,54 +190,8 @@ export async function compileToSqlite(
     // Phase 1: Create all tables (inject auto-managed columns if needed)
     for (const table of database.tables) {
       if (table.rawSql) {
-        let sql = table.rawSql;
-
-        // Check if this is a junction table (has _lhs_anchor and _rhs_anchor columns)
-        const isJunctionTable = table.rows.some(
-          r => r.columns['_lhs_anchor'] !== undefined && r.columns['_rhs_anchor'] !== undefined
-        );
-
-        // Check if auto-managed columns need to be injected
-        const hasId = table.schema.columns.some(c => c.name === 'id' || c.primaryKey);
-        const hasName = table.schema.columns.some(c => c.name === 'name');
-        const hasAnchor = table.schema.columns.some(c => c.name === 'anchor');
-
-        // Junction tables have composite PKs - don't inject auto-managed columns
-        // If missing id/name/anchor and table will have rows, inject them
-        if (table.rows.length > 0 && !isJunctionTable && (!hasId || !hasName || !hasAnchor)) {
-          // Parse the CREATE TABLE to inject columns at the beginning
-          const match = sql.match(/^CREATE\s+TABLE\s+(\w+)\s*\(([\s\S]*)\);?\s*$/i);
-          if (match) {
-            const [, tableName, innerContent] = match;
-
-            if (!innerContent) {
-              throw new Error(`Failed to parse CREATE TABLE statement for ${tableName}`);
-            }
-
-            const newColumns: string[] = [];
-
-            if (!hasId) {
-              newColumns.push('id INTEGER PRIMARY KEY');
-            }
-            if (!hasName) {
-              newColumns.push('name TEXT NOT NULL DEFAULT \'\'');
-            }
-            if (!hasAnchor) {
-              newColumns.push('anchor TEXT UNIQUE');
-            }
-
-            if (newColumns.length > 0) {
-              // Re-indent innerContent to ensure consistent indentation
-              const reindentedContent = innerContent
-                .trim()
-                .split('\n')
-                .map(line => '  ' + line.trim())
-                .join('\n');
-              sql = `CREATE TABLE ${tableName} (\n  ${newColumns.join(',\n  ')},\n${reindentedContent}\n)`;
-            }
-          }
-        }
-
+        // Use shared DDL generator with SQLite dialect
+        const sql = generateCreateTableSql(table, { dialect: 'sqlite' });
         db.run(sql);
       }
     }

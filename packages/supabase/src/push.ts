@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@m2sql/model';
 import type { PushOptions, PushResult } from './types.js';
-import { createTable, tableExists } from './schema.js';
+import { createTable, tableExists, reloadSchemaCache } from './schema.js';
 import { upsertDataRows } from './upsert.js';
 import { isJunctionTable, upsertJunctionRows } from './junction.js';
 import { pushMetadata } from './metadata.js';
@@ -35,7 +35,11 @@ export async function pushToSupabase(
       console.log(`Found ${dataTables.length} data tables and ${junctionTables.length} junction tables`);
     }
 
-    for (const table of database.tables) {
+    // Step 1: Create data tables first (junction tables have FKs to these)
+    if (verbose) {
+      console.log('\nCreating data tables...');
+    }
+    for (const table of dataTables) {
       try {
         const exists = await tableExists(supabase, table.name);
         if (!exists) {
@@ -51,6 +55,46 @@ export async function pushToSupabase(
         const message = `Failed to create table ${table.name}: ${error}`;
         result.errors.push(message);
         console.error(message);
+      }
+    }
+
+    // Step 2: Create junction tables (after data tables exist)
+    if (verbose && junctionTables.length > 0) {
+      console.log('\nCreating junction tables...');
+    }
+    for (const table of junctionTables) {
+      try {
+        const exists = await tableExists(supabase, table.name);
+        if (!exists) {
+          await createTable(supabase, table, verbose);
+          result.tablesCreated++;
+        } else {
+          result.tablesUpdated++;
+          if (verbose) {
+            console.log(`Table ${table.name} already exists`);
+          }
+        }
+      } catch (error) {
+        const message = `Failed to create table ${table.name}: ${error}`;
+        result.errors.push(message);
+        console.error(message);
+      }
+    }
+
+    // Step 3: Reload PostgREST schema cache so new tables are visible
+    if (result.tablesCreated > 0) {
+      if (verbose) {
+        console.log('\nReloading schema cache...');
+      }
+      try {
+        await reloadSchemaCache(supabase);
+        // Give PostgREST a few seconds to process the reload
+        if (verbose) {
+          console.log('Waiting for schema cache to refresh...');
+        }
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      } catch (error) {
+        console.warn(`Could not reload schema cache: ${error}`);
       }
     }
 

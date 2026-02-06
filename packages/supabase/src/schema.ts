@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Table, TableSchema } from '@m2sql/model';
+import { generateCreateTableSql } from '@m2sql/model';
 import type { SupabaseTableSchema, SupabaseColumn, SupabaseForeignKey } from './types.js';
 
 export async function createTable(
@@ -11,12 +12,28 @@ export async function createTable(
     console.log(`Creating table: ${table.name}`);
   }
 
+  // Use shared DDL generator with PostgreSQL dialect
+  const sql = generateCreateTableSql(table, { dialect: 'postgres', verbose });
+
   const { error } = await supabase.rpc('exec_sql', {
-    sql: table.rawSql
+    sql
   });
 
   if (error) {
     throw new Error(`Failed to create table ${table.name}: ${error.message}`);
+  }
+}
+
+export async function reloadSchemaCache(
+  supabase: SupabaseClient
+): Promise<void> {
+  // PostgREST listens for NOTIFY signals to reload its schema cache
+  const { error } = await supabase.rpc('exec_sql', {
+    sql: 'NOTIFY pgrst, \'reload schema\''
+  });
+
+  if (error) {
+    throw new Error(`Failed to reload schema cache: ${error.message}`);
   }
 }
 
