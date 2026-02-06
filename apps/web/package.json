@@ -1,0 +1,34 @@
+{
+  "name": "@m2sql/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@mantine/core": "^7.15.0",
+    "@mantine/hooks": "^7.15.0",
+    "@tabler/icons-react": "^3.29.0",
+    "reactflow": "^11.11.0",
+    "dagre": "^0.8.5",
+    "@supabase/supabase-js": "^2.39.0",
+    "@m2sql/parser": "workspace:*",
+    "@m2sql/model": "workspace:*",
+    "@m2sql/supabase": "workspace:*",
+    "@m2sql/renderer": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/dagre": "^0.7.52",
+    "typescript": "^5.7.0"
+  }
+}

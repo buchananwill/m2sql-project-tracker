@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Table, Row } from '@m2sql/model';
+import { buildRowData } from '@m2sql/model';
 import type { UpsertResult } from './types.js';
 
 export async function upsertRow(
@@ -65,21 +66,6 @@ export async function upsertRow(
   const newId = inserted.id;
   anchorToIdMap.set(row.anchor, newId);
   return { action: 'inserted', id: newId };
-}
-
-function buildRowData(row: Row): Record<string, any> {
-  const data: Record<string, any> = {
-    name: row.name,
-    anchor: row.anchor
-  };
-
-  for (const [key, value] of Object.entries(row.columns)) {
-    if (!key.startsWith('_')) {
-      data[key] = value;
-    }
-  }
-
-  return data;
 }
 
 export async function upsertDataRows(

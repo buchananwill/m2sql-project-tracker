@@ -3,7 +3,8 @@
  * Reconstructs arrow-to-junction-table mappings for rendering.
  */
 
-import type { Table, TableSchema, ColumnDefinition } from '@m2sql/model';
+import type { Table, ColumnDefinition } from '@m2sql/model';
+import { isJunctionTableBySchema } from '@m2sql/model';
 
 export interface InferredArrowMapping {
   /** Left FK column name */
@@ -18,22 +19,6 @@ export interface InferredArrowMapping {
   leftTable: string;
   /** Right table name */
   rightTable: string;
-}
-
-/**
- * Identify if a table is a junction table.
- * Junction tables have exactly 2 FK columns that form the primary key.
- */
-function isJunctionTable(schema: TableSchema): boolean {
-  const fkColumns = schema.columns.filter(c => c.references !== undefined);
-
-  if (fkColumns.length < 2) return false;
-
-  // Check if the first two FKs are part of the primary key
-  const pkSet = new Set(schema.primaryKey);
-  const fkInPk = fkColumns.filter(fk => pkSet.has(fk.name));
-
-  return fkInPk.length >= 2;
 }
 
 /**
@@ -90,7 +75,7 @@ export function inferArrowMappings(
   const mappings = new Map<string, InferredArrowMapping>();
 
   for (const table of tables) {
-    if (!isJunctionTable(table.schema)) continue;
+    if (!isJunctionTableBySchema(table.schema)) continue;
 
     const fkColumns = table.schema.columns.filter(c => c.references !== undefined);
     if (fkColumns.length < 2) continue;

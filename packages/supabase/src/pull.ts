@@ -1,10 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Table, Row, ArrowMapping } from '@m2sql/model';
+import { isJunctionTableBySchema, buildIdToAnchorMap } from '@m2sql/model';
 import type { PullOptions } from './types.js';
 import {
   getTableNames,
   getTableSchema,
-  isJunctionTable,
   buildTableSchemaFromSupabase,
   buildRawSqlFromSchema
 } from './schema.js';
@@ -54,7 +54,8 @@ export async function pullFromSupabase(
     }
     // Fallback to schema-based detection
     const schema = tableSchemas.get(name);
-    return !isJunctionTable(schema);
+    const tableSchema = buildTableSchemaFromSupabase(schema);
+    return !isJunctionTableBySchema(tableSchema);
   });
 
   const junctionTableNames = tableNames.filter(name => {
@@ -64,7 +65,8 @@ export async function pullFromSupabase(
     }
     // Fallback to schema-based detection
     const schema = tableSchemas.get(name);
-    return isJunctionTable(schema);
+    const tableSchema = buildTableSchemaFromSupabase(schema);
+    return isJunctionTableBySchema(tableSchema);
   });
 
   if (verbose) {

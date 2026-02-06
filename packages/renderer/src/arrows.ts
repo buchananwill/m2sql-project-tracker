@@ -4,29 +4,13 @@
  */
 
 import type { Table, Row, ArrowMapping } from '@m2sql/model';
+import { buildIdToAnchorMap } from '@m2sql/model';
 
 export interface RenderedArrow {
   lhsAnchor: string;
   arrowToken: string;
   rhsAnchor: string;
   label?: string;
-}
-
-/**
- * Build a map from ID to anchor for all data tables.
- */
-function buildIdToAnchorMap(dataTables: Table[]): Map<number, string> {
-  const map = new Map<number, string>();
-
-  for (const table of dataTables) {
-    for (const row of table.rows) {
-      if (row.pk !== undefined) {
-        map.set(row.pk, row.anchor);
-      }
-    }
-  }
-
-  return map;
 }
 
 /**

@@ -5,3 +5,4 @@
 export * from './types.js';
 export * from './schema.js';
 export * from './ddl.js';
+export * from './utils/index.js';

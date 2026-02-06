@@ -12,9 +12,9 @@ import type {
   Relationships,
   TableSchema,
   ColumnDefinition,
-  SqlColumnType,
   ArrowMapping,
 } from '@m2sql/model';
+import { parseSqliteType, buildIdToAnchorMap } from '@m2sql/model';
 import { readArrowMappings } from './metadata.js';
 
 /** Helper: run a query and return all rows as objects */
@@ -48,15 +48,6 @@ interface ForeignKeyInfo {
   to: string;
   on_update: string;
   on_delete: string;
-}
-
-/** Parse SQLite type string to our normalized type */
-function parseSqliteType(typeStr: string): SqlColumnType {
-  const upper = (typeStr || 'TEXT').toUpperCase();
-  if (upper.includes('INT')) return 'INTEGER';
-  if (upper.includes('REAL') || upper.includes('FLOAT') || upper.includes('DOUBLE')) return 'REAL';
-  if (upper.includes('BLOB')) return 'BLOB';
-  return 'TEXT';
 }
 
 /** Build a TableSchema from SQLite pragmas */
@@ -104,21 +95,16 @@ function extractTableSchema(db: SqlJsDatabase, tableName: string): TableSchema {
 }
 
 /** Identify junction tables: tables with composite PK of 2+ FK columns */
-function isJunctionTable(db: SqlJsDatabase, tableName: string): boolean {
-  const columns = allRows(db, `PRAGMA table_info(${tableName})`) as unknown as TableInfo[];
-  const fks = allRows(db, `PRAGMA foreign_key_list(${tableName})`) as unknown as ForeignKeyInfo[];
-
-  if (columns.length === 0) return false;
-
-  const fkColumns = new Set(fks.map(fk => fk.from));
-  const pkColumns = new Set(columns.filter(c => c.pk > 0).map(c => c.name));
+function isJunctionTable(schema: TableSchema): boolean {
+  const fkColumns = schema.columns.filter(c => c.references);
+  const pkSet = new Set(schema.primaryKey);
 
   // A junction table has:
   // 1. At least 2 FK columns
   // 2. Those FK columns form the primary key
-  if (fks.length < 2) return false;
+  if (fkColumns.length < 2) return false;
 
-  const fkInPk = Array.from(fkColumns).filter(fk => pkColumns.has(fk));
+  const fkInPk = fkColumns.filter(fk => pkSet.has(fk.name));
   return fkInPk.length >= 2;
 }
 
@@ -128,8 +114,8 @@ function getOriginalSql(db: SqlJsDatabase, tableName: string): string {
   return (rows[0]?.['sql'] as string) ?? '';
 }
 
-/** Build a reverse lookup: id -> anchor */
-function buildIdToAnchorMap(
+/** Build a reverse lookup: id -> anchor by querying a specific table in the database */
+function buildIdToAnchorMapFromDb(
   db: SqlJsDatabase,
   tableName: string,
   pkCol: string,
@@ -184,7 +170,7 @@ function resolveJunctionRelationships(
       const refSchema = allSchemas.get(fk.table);
       const refPk = refSchema?.primaryKey[0];
       if (refPk) {
-        idMaps.set(fk.table, buildIdToAnchorMap(db, fk.table, refPk));
+        idMaps.set(fk.table, buildIdToAnchorMapFromDb(db, fk.table, refPk));
       }
     }
   }
@@ -251,7 +237,8 @@ export function extractFromDb(
 
   for (const { name } of tableRows) {
     const tableName = name as string;
-    if (isJunctionTable(db, tableName)) {
+    const schema = schemas.get(tableName);
+    if (schema && isJunctionTable(schema)) {
       junctionTables.push(tableName);
     } else {
       dataTables.push(tableName);

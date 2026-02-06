@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Table, TableSchema } from '@m2sql/model';
-import { generateCreateTableSql } from '@m2sql/model';
+import { generateCreateTableSql, isJunctionTableBySchema, parsePostgresType, sqliteTypeToPostgres } from '@m2sql/model';
 import type { SupabaseTableSchema, SupabaseColumn, SupabaseForeignKey } from './types.js';
 
 export async function createTable(
@@ -138,13 +138,6 @@ async function getForeignKeys(
   })) || [];
 }
 
-export function isJunctionTable(schema: SupabaseTableSchema): boolean {
-  const fkCount = schema.foreignKeys.length;
-  const pkCount = schema.primaryKeys.length;
-
-  return fkCount >= 2 && pkCount >= 2;
-}
-
 export function buildTableSchemaFromSupabase(
   supabaseSchema: SupabaseTableSchema
 ): TableSchema {
@@ -154,7 +147,7 @@ export function buildTableSchemaFromSupabase(
       const fk = supabaseSchema.foreignKeys.find(fk => fk.columnName === col.name);
       return {
         name: col.name,
-        type: mapSupabaseTypeToSql(col.dataType),
+        type: parsePostgresType(col.dataType),
         nullable: col.isNullable,
         primaryKey: supabaseSchema.primaryKeys.includes(col.name),
         unique: false,
@@ -171,23 +164,6 @@ export function buildTableSchemaFromSupabase(
     uniqueConstraints: [],
     checkConstraints: []
   };
-}
-
-function mapSupabaseTypeToSql(supabaseType: string): 'INTEGER' | 'TEXT' | 'REAL' | 'BLOB' {
-  const typeMap: Record<string, 'INTEGER' | 'TEXT' | 'REAL' | 'BLOB'> = {
-    'integer': 'INTEGER',
-    'bigint': 'INTEGER',
-    'text': 'TEXT',
-    'character varying': 'TEXT',
-    'boolean': 'INTEGER',
-    'timestamp with time zone': 'TEXT',
-    'timestamp without time zone': 'TEXT',
-    'date': 'TEXT',
-    'real': 'REAL',
-    'double precision': 'REAL'
-  };
-
-  return typeMap[supabaseType.toLowerCase()] || 'TEXT';
 }
 
 export function buildRawSqlFromSchema(

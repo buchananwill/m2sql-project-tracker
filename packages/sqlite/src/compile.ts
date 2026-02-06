@@ -5,7 +5,7 @@
 
 import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
 import type {Database as DbModel, RowValue, Table} from '@m2sql/model';
-import { generateCreateTableSql } from '@m2sql/model';
+import { generateCreateTableSql, isJunctionTableByRows, buildAnchorToIdMap } from '@m2sql/model';
 import { createMetadataTable, insertArrowMapping } from './metadata.js';
 
 /** Junction table configuration inferred from schema */
@@ -79,9 +79,10 @@ function inferJunctionConfig(
 }
 
 /**
- * Build a lookup map from anchor to assigned row ID.
+ * Build a lookup map from anchor to assigned row ID by querying the database.
+ * This version queries the actual database to get auto-generated IDs.
  */
-function buildAnchorToIdMap(
+function buildAnchorToIdMapFromDb(
   tables: Table[],
   db: SqlJsDatabase,
 ): Map<string, number> {
@@ -202,11 +203,7 @@ export async function compileToSqlite(
     const junctionTables = new Set<string>();
     for (const table of database.tables) {
       // Check if this is a junction table (has _lhs_anchor and _rhs_anchor columns)
-      const isJunctionTable = table.rows.some(
-        r => r.columns["_lhs_anchor"] !== undefined && r.columns["_rhs_anchor"] !== undefined
-      );
-
-      if (isJunctionTable) {
+      if (isJunctionTableByRows(table.rows)) {
         junctionTables.add(table.name);
         continue;
       }
@@ -216,7 +213,7 @@ export async function compileToSqlite(
     }
 
     // Phase 4: Build anchor to ID map from data tables
-    const anchorToId = buildAnchorToIdMap(database.tables, db);
+    const anchorToId = buildAnchorToIdMapFromDb(database.tables, db);
 
     // Phase 5a: Handle markdown-style nested relationships (backward compatibility)
     for (const table of database.tables) {
