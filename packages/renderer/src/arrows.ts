@@ -41,23 +41,15 @@ export function extractArrows(
   const arrows: RenderedArrow[] = [];
   const idToAnchor = buildIdToAnchorMap(dataTables);
 
-  console.log(`[extractArrows] idToAnchor map size: ${idToAnchor.size}`);
-  console.log(`[extractArrows] Processing ${junctionTables.length} junction tables`);
-
   for (const junctionTable of junctionTables) {
-    console.log(`[extractArrows] Junction table: ${junctionTable.name}, rows: ${junctionTable.rows.length}`);
     const mapping = arrowMappings.get(junctionTable.name);
     if (!mapping) {
-      console.log(`[extractArrows] No mapping found for ${junctionTable.name}`);
       continue;
     }
-    console.log(`[extractArrows] Mapping: ${mapping.leftColumn} ${mapping.arrowToken} ${mapping.rightColumn}`);
 
     const { leftColumn, rightColumn, arrowToken } = mapping;
 
     for (const row of junctionTable.rows) {
-      console.log(`[extractArrows]   Row columns:`, row.columns);
-
       // Try _lhs_anchor/_rhs_anchor first (if present from parser)
       let lhsAnchor = row.columns['_lhs_anchor'] as string | undefined;
       let rhsAnchor = row.columns['_rhs_anchor'] as string | undefined;
@@ -67,30 +59,23 @@ export function extractArrows(
         const leftId = row.columns[leftColumn] as number | undefined;
         const rightId = row.columns[rightColumn] as number | undefined;
 
-        console.log(`[extractArrows]   leftId=${leftId}, rightId=${rightId}`);
-
         if (leftId !== undefined) {
           lhsAnchor = idToAnchor.get(leftId);
         }
         if (rightId !== undefined) {
           rhsAnchor = idToAnchor.get(rightId);
         }
-
-        console.log(`[extractArrows]   lhsAnchor=${lhsAnchor}, rhsAnchor=${rhsAnchor}`);
       }
 
       const label = row.columns['label'] as string | undefined;
 
       if (lhsAnchor && rhsAnchor) {
-        console.log(`[extractArrows]   Adding arrow: ${lhsAnchor} ${arrowToken} ${rhsAnchor}`);
         arrows.push({
           lhsAnchor,
           arrowToken,
           rhsAnchor,
           label,
         });
-      } else {
-        console.log(`[extractArrows]   Skipping arrow - missing anchors`);
       }
     }
   }

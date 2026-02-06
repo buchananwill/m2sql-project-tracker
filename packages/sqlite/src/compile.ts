@@ -226,7 +226,13 @@ export async function compileToSqlite(
             }
 
             if (newColumns.length > 0) {
-              sql = `CREATE TABLE ${tableName} (\n  ${newColumns.join(',\n  ')},\n  ${innerContent.trim()}\n)`;
+              // Re-indent innerContent to ensure consistent indentation
+              const reindentedContent = innerContent
+                .trim()
+                .split('\n')
+                .map(line => '  ' + line.trim())
+                .join('\n');
+              sql = `CREATE TABLE ${tableName} (\n  ${newColumns.join(',\n  ')},\n${reindentedContent}\n)`;
             }
           }
         }

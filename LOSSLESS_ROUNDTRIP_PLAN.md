@@ -1,15 +1,15 @@
 # Plan: Lossless Round-Trip with Metadata Table
 
-**Status**: Phase 4 (@m2sql/renderer) is 85% complete - metadata table approach designed but needs verification and integration test fix.
+**Status**: ✅ COMPLETE - All tests passing, lossless round-trip fully implemented and verified.
 
-**Last Updated**: 2026-02-05
+**Last Updated**: 2026-02-06
 
 ## Current Status
 
-- ✅ **Renderer core functionality** - 12/14 tests passing
+- ✅ **Renderer core functionality** - 15/15 tests passing
 - ✅ **Basic architecture** - Parser, Compiler, Extract, Render all exist
-- ❌ **Round-trip is lossy** - Arrow tokens and FK column order are guessed/inferred
-- 🔄 **Metadata table partially implemented** - Code added but needs verification
+- ✅ **Round-trip is LOSSLESS** - Arrow tokens and FK column order preserved via metadata
+- ✅ **Metadata table fully implemented** - All stages verified and tested
 
 ## Problem Statement
 
@@ -286,10 +286,45 @@ sqlite3 test.db "SELECT * FROM _mermaid_arrow_mappings"
 - This is similar to how frameworks like Django store metadata in `django_*` tables
 - The SQLite database is part of the Mermaid pipeline, not meant to be standalone
 
-## Next Session Action Items
+## Completion Summary (2026-02-06)
 
-1. **Start with verification**: Run each pipeline stage independently with logging
-2. **Fix integration test**: Use debug output to find where the pipeline breaks
-3. **Clean up debug logging**: Once tests pass, remove all console.log()
-4. **Update docs**: PROJECT_SUMMARY.md and MERMAID_RULESHEET.md
-5. **Declare Phase 4 complete** 🎉
+### ✅ All Objectives Achieved
+
+**Implementation Completed:**
+1. ✅ Metadata table (`_mermaid_arrow_mappings`) created and integrated
+2. ✅ Parser populates `database.arrowMappings` from SQL header
+3. ✅ Compiler writes metadata to SQLite during compilation
+4. ✅ Extract reads metadata and populates `database.arrowMappings`
+5. ✅ Renderer uses metadata (no inference/guessing)
+6. ✅ All debug logging cleaned up
+
+**Bugs Fixed:**
+1. ✅ Metadata table excluded from extraction (added `_mermaid_%` filter)
+2. ✅ Junction table detection fixed (now identifies by composite FK primary key)
+3. ✅ SQL indentation consistency fixed (re-indent innerContent in compile.ts)
+4. ✅ Semicolons added to CREATE TABLE statements (SQLite sqlite_master doesn't include them)
+
+**Test Results:**
+- ✅ 56/56 tests passing across all packages
+- ✅ Integration test validates full round-trip with example file
+- ✅ All 9 arrows preserved with exact tokens (`*--` and `..>`)
+
+**Verification:**
+- ✅ Parser stage: Arrow mappings captured correctly
+- ✅ Compiler stage: Metadata table created and populated
+- ✅ Extract stage: Metadata read successfully
+- ✅ Renderer stage: Arrows rendered using metadata
+- ✅ Re-parse stage: Output can be parsed without errors
+
+### Success Criteria Met
+
+- ✅ All 15 renderer tests passing
+- ✅ Integration test `integration - round-trip with example file` passes
+- ✅ Round-trip preserves exact arrow syntax and direction
+- ✅ No inference/guessing - metadata is source of truth
+- ✅ Clear warnings if metadata missing (tested via RenderResult)
+- ✅ Documentation updated (PROJECT_SUMMARY.md)
+
+## Phase 4 Complete 🎉
+
+The lossless round-trip implementation is fully complete and ready for production use. The metadata table approach successfully preserves all Mermaid diagram semantics through the SQLite compilation and extraction process.

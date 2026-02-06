@@ -103,7 +103,7 @@ function extractTableSchema(db: SqlJsDatabase, tableName: string): TableSchema {
   };
 }
 
-/** Identify junction tables: tables whose columns are all PKs or FKs */
+/** Identify junction tables: tables with composite PK of 2+ FK columns */
 function isJunctionTable(db: SqlJsDatabase, tableName: string): boolean {
   const columns = allRows(db, `PRAGMA table_info(${tableName})`) as unknown as TableInfo[];
   const fks = allRows(db, `PRAGMA foreign_key_list(${tableName})`) as unknown as ForeignKeyInfo[];
@@ -112,11 +112,14 @@ function isJunctionTable(db: SqlJsDatabase, tableName: string): boolean {
 
   const fkColumns = new Set(fks.map(fk => fk.from));
   const pkColumns = new Set(columns.filter(c => c.pk > 0).map(c => c.name));
-  const metaColumns = new Set(['notes', 'created_utc', 'relationship']);
 
-  return columns.every(
-    c => pkColumns.has(c.name) || fkColumns.has(c.name) || metaColumns.has(c.name)
-  );
+  // A junction table has:
+  // 1. At least 2 FK columns
+  // 2. Those FK columns form the primary key
+  if (fks.length < 2) return false;
+
+  const fkInPk = Array.from(fkColumns).filter(fk => pkColumns.has(fk));
+  return fkInPk.length >= 2;
 }
 
 /** Get the original CREATE TABLE SQL from sqlite_master */
@@ -235,7 +238,7 @@ export function extractFromDb(
 ): DbModel {
   const tableRows = allRows(
     db,
-    `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
+    `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_mermaid_%' ORDER BY name`
   );
 
   const schemas = new Map<string, TableSchema>();
@@ -318,18 +321,13 @@ export function extractFromDb(
     const rawSql = getOriginalSql(db, jt);
 
     const dbRows = allRows(db, `SELECT * FROM ${jt}`);
-    console.log(`[extract] ${jt}: Found ${dbRows.length} rows`);
-    if (dbRows.length > 0) {
-      console.log(`[extract] ${jt} first row:`, dbRows[0]);
-    }
 
-    const rows: Row[] = dbRows.map(dbRow => {
+    const rows: Row[] = dbRows.map((dbRow) => {
       const columns: ColumnValues = {};
       // Include ALL columns (FK columns are the PK columns in junction tables)
       for (const [colName, value] of Object.entries(dbRow)) {
         columns[colName] = value as string | number | null;
       }
-      console.log(`[extract] ${jt} mapped columns:`, columns);
 
       return {
         name: '', // No meaningful name for junction rows

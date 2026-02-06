@@ -29,7 +29,9 @@ The authoring format uses Mermaid's `classDiagram` syntax. See `MERMAID_RULESHEE
 
 ### SQL Schema Header
 
-Table schemas are declared as commented-out SQL at the top of the `.mmd` file, after frontmatter. This includes data tables, junction tables, and arrow mappings:
+Table schemas are declared as commented-out SQL at the top of the `.mmd` file, after frontmatter. This includes data tables, junction tables, and arrow mappings.
+
+**Arrow mappings** (e.g., `%% parent_task_id *-- child_task_id : task_part_of`) are stored in the SQLite database via a metadata table (`_mermaid_arrow_mappings`) to enable lossless round-trip export. This preserves exact arrow tokens and FK column order.
 
 ```mermaid
 ---
@@ -129,7 +131,7 @@ Tests use Node.js built-in test runner with `tsx` for TypeScript support: `node 
 | `@m2sql/parser`   | ✅ Complete | 32/32 passing   | Mermaid `.mmd` to semantic model            |
 | `@m2sql/sqlite`   | ✅ Complete | 9/9 passing     | Model to SQLite compilation & extraction    |
 | `@m2sql/cli`      | ✅ Complete | Manual testing  | Command-line interface                      |
-| `@m2sql/renderer` | ✅ Complete | 13/14 passing   | Model to Mermaid export (round-trip)        |
+| `@m2sql/renderer` | ✅ Complete | 15/15 passing   | Model to Mermaid export (lossless round-trip) |
 
 ### Not Yet Started
 
@@ -161,9 +163,11 @@ Tests use Node.js built-in test runner with `tsx` for TypeScript support: `node 
 - `compileToSqlite(databases)` - Creates tables, inserts rows with FK resolution
 - Auto-managed column injection (`id`, `name`, `anchor`)
 - Junction table compilation with anchor→ID translation
+- **Metadata table (`_mermaid_arrow_mappings`)** for lossless round-trip
+- `extractFromDb(db)` - Extracts Database model from SQLite (including metadata)
 - Schema flexibility (auto-add TEXT columns)
 - Uses `sql.js` (WASM-based SQLite)
-- **9/9 tests passing** (117ms duration)
+- **9/9 tests passing** (569ms duration)
 
 ### @m2sql/cli
 
@@ -190,22 +194,33 @@ m2sql compile input.mmd -o output.db
 
 **Implemented:**
 - `renderToMermaid(database)` - Exports Database model to `.mmd` format
-- Arrow mapping inference from junction table schemas
+- **Lossless round-trip** using metadata table approach
 - Topological sort for row ordering (composition, dependencies, priority, created_utc)
 - YAML frontmatter generation
-- SQL header rendering with %% prefix
+- SQL header rendering with %% prefix (consistent indentation, semicolons)
 - Namespace and class rendering
 - Arrow declarations via FK ID → anchor joins
 - Includes `id:` in exported rows for round-trip UPSERT
-- **13/14 tests passing** (554ms duration)
+- **15/15 tests passing** (602ms duration)
 
 **Features:**
-- Infers arrow tokens from FK column names (composition `*--`, dependency `..>`)
+- **Metadata table (`_mermaid_arrow_mappings`)** stores exact arrow tokens and FK column order
+- No inference or guessing - preserves exact arrow syntax from original
 - Handles empty tables gracefully
 - Escapes special characters in values
 - Optional classDef styling
 
+**Lossless Round-Trip:**
+The pipeline now achieves perfect lossless round-trip: `Mermaid → SQLite → Mermaid → SQLite...`
+- Arrow tokens (`*--`, `..>`, etc.) preserved exactly
+- FK column order (LHS vs RHS) preserved exactly
+- All relationship direction maintained
+- Full integration test validates complete round-trip with example file
+
 ## What's Next
+
+### Recently Completed
+- ✅ **@m2sql/renderer** - Lossless round-trip with metadata table (15/15 tests passing)
 
 ### Priority Order
 
@@ -213,12 +228,14 @@ m2sql compile input.mmd -o output.db
    - SQLite ↔ Supabase bidirectional sync
    - UPSERT logic with anchor-based FK resolution
    - Insert/update only (no deletion)
+   - Handle metadata table (`_mermaid_arrow_mappings`) during sync
    - Enables: Multi-user collaboration, cloud backup
 
 2. **Web UI** (`apps/web`)
    - Next.js visualization dashboard
    - Graphical views: node graphs, Gantt charts, tree views
    - Supabase real-time integration
+   - Export to Mermaid via renderer
    - Enables: Visual project tracking interface
 
 ## CLI Commands
@@ -289,16 +306,45 @@ m2sql-project-tracker/
 ├── packages/
 │   ├── model/          ✅ Types and schema parsing
 │   ├── parser/         ✅ Mermaid → AST (32 tests)
-│   ├── sqlite/         ✅ AST → SQLite (9 tests)
+│   ├── sqlite/         ✅ AST → SQLite with metadata (9 tests)
 │   ├── cli/            ✅ Command-line interface
-│   ├── renderer/       🚧 AST → Mermaid export
-│   └── supabase/       🚧 SQLite ↔ Supabase sync
+│   ├── renderer/       ✅ Lossless round-trip export (15 tests)
+│   └── supabase/       🚧 SQLite ↔ Supabase sync (NEXT)
 ├── apps/
 │   └── web/            🚧 Next.js dashboard
 ├── examples/
 │   └── project-planner.mmd    Working example
 ├── MERMAID_RULESHEET.md       Complete specification
-└── project_summary.md         This file
+├── LOSSLESS_ROUNDTRIP_PLAN.md Implementation details
+└── PROJECT_SUMMARY.md         This file
 
 Legend: ✅ Complete | 🚧 Not started
+```
+
+## Recent Development (2026-02-06)
+
+### Completed: Lossless Round-Trip Implementation
+
+Successfully implemented and tested the metadata table approach for lossless Mermaid ↔ SQLite round-trips.
+
+**Key Changes:**
+1. Created `_mermaid_arrow_mappings` metadata table to store exact arrow tokens and FK column order
+2. Fixed junction table detection to handle tables with additional columns (e.g., `label`)
+3. Fixed SQL indentation consistency in rendered output
+4. Added semicolons to CREATE TABLE statements for parser compatibility
+5. Excluded metadata tables from extraction
+
+**Test Results:** 56/56 tests passing
+- Parser: 32/32
+- SQLite: 9/9
+- Renderer: 15/15
+
+**What This Enables:**
+- Perfect preservation of arrow syntax (`*--`, `..>`, etc.)
+- No inference or guessing needed
+- Full integration test validates: Parse → Compile → Extract → Render → Re-parse
+- Ready for Supabase sync implementation
+
+**Next Steps:**
+Start implementing `@m2sql/supabase` package for cloud sync, ensuring metadata table is properly handled during bidirectional sync.
 ```

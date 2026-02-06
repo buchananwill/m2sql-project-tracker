@@ -8,9 +8,15 @@ import type { Table } from '@m2sql/model';
 /**
  * Format a CREATE TABLE statement with %% prefix on each line.
  * Removes auto-managed columns if they use default types.
+ * Ensures statement ends with semicolon.
  */
 function formatCreateTable(rawSql: string): string {
-  const lines = rawSql.trim().split('\n');
+  let sql = rawSql.trim();
+  // Ensure semicolon at end (SQLite's sqlite_master doesn't include it)
+  if (!sql.endsWith(';')) {
+    sql += ';';
+  }
+  const lines = sql.split('\n');
   return lines.map(line => `%% ${line}`).join('\n');
 }
 

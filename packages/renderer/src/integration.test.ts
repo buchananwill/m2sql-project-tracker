@@ -98,6 +98,10 @@ test('integration - round-trip with example file', async () => {
 
   // Validate that we can re-parse the rendered output
   const reparsed = parseMermaid(rendered);
+  if (reparsed.errors.length > 0) {
+    console.log('\n=== REPARSE ERRORS ===');
+    reparsed.errors.forEach((err, idx) => console.log(`${idx + 1}. ${err.message}`));
+  }
   assert.strictEqual(reparsed.errors.length, 0, 'Re-parsing rendered output should succeed');
   assert.strictEqual(reparsed.databases.length, 1, 'Re-parsed should have 1 database');
 
