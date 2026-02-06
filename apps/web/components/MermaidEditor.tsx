@@ -1,7 +1,8 @@
 'use client';
 
 import { Textarea, Paper } from '@mantine/core';
-import { useDebouncedCallback } from '@mantine/hooks';
+import { useState, useEffect } from 'react';
+import { useDebouncedValue } from '@mantine/hooks';
 
 interface MermaidEditorProps {
   value: string;
@@ -9,10 +10,23 @@ interface MermaidEditorProps {
 }
 
 export function MermaidEditor({ value, onChange }: MermaidEditorProps) {
-  // Debounce parsing to avoid excessive re-renders
-  const debouncedOnChange = useDebouncedCallback((newValue: string) => {
-    onChange(newValue);
-  }, 500);
+  // Local state for immediate UI updates
+  const [localValue, setLocalValue] = useState(value);
+
+  // Debounce the local value before notifying parent
+  const [debouncedValue] = useDebouncedValue(localValue, 500);
+
+  // Sync external value changes (e.g., from file upload)
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  // Notify parent when debounced value changes
+  useEffect(() => {
+    if (debouncedValue !== value) {
+      onChange(debouncedValue);
+    }
+  }, [debouncedValue, onChange, value]);
 
   return (
     <Paper shadow="sm" p="md" withBorder>
@@ -21,11 +35,8 @@ export function MermaidEditor({ value, onChange }: MermaidEditorProps) {
         placeholder="Paste or type your Mermaid classDiagram..."
         minRows={20}
         maxRows={30}
-        value={value}
-        onChange={(e) => {
-          const newValue = e.currentTarget.value;
-          debouncedOnChange(newValue);
-        }}
+        value={localValue}
+        onChange={(e) => setLocalValue(e.currentTarget.value)}
         styles={{
           input: {
             fontFamily: 'monospace',

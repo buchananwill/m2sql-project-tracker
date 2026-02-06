@@ -1,8 +1,10 @@
 import '@mantine/core/styles.css';
 import 'reactflow/dist/style.css';
 import { ColorSchemeScript, MantineProvider } from '@mantine/core';
+import { theme } from '@/lib/theme';
+import type { Metadata } from 'next';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'm2sql Project Tracker',
   description: 'Mermaid to SQL project planning and visualization',
 };
@@ -13,12 +15,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <ColorSchemeScript />
+        <ColorSchemeScript defaultColorScheme="auto" />
       </head>
       <body>
-        <MantineProvider>{children}</MantineProvider>
+        <MantineProvider theme={theme} defaultColorScheme="auto">
+          {children}
+        </MantineProvider>
       </body>
     </html>
   );
