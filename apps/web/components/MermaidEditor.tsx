@@ -74,21 +74,28 @@ export function MermaidEditor() {
       style={{
         resize: 'vertical',
         overflow: 'auto',
+        height: '300px',
         minHeight: '200px',
         maxHeight: '600px',
       }}
     >
-      <Paper shadow="sm" p="md" withBorder>
+      <Paper shadow="sm" p="md" withBorder style={{ height: '100%' }}>
         <Textarea
           label="Mermaid Diagram"
           placeholder="Paste or type your Mermaid classDiagram..."
-          minRows={10}
           value={localValue}
           onChange={(e) => setLocalValue(e.currentTarget.value)}
           styles={{
             input: {
               fontFamily: 'monospace',
               fontSize: '0.9rem',
+              height: 'calc(100% - 28px)', // Account for label height
+            },
+            root: {
+              height: '100%',
+            },
+            wrapper: {
+              height: '100%',
             },
           }}
         />

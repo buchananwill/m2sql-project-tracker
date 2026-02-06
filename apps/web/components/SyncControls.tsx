@@ -75,22 +75,24 @@ export function SyncControls() {
 
   return (
     <Stack gap="md">
-      <Group>
+      <Group gap="xs" grow>
         <Button
           leftSection={<IconCloudUpload size={16} />}
           onClick={handlePush}
           loading={syncState.loading}
           disabled={!database}
+          size="sm"
         >
-          Push to Supabase
+          Push
         </Button>
         <Button
           leftSection={<IconCloudDownload size={16} />}
           variant="outline"
           onClick={handlePull}
           loading={syncState.loading}
+          size="sm"
         >
-          Pull from Supabase
+          Pull
         </Button>
       </Group>
 
