@@ -11,14 +11,15 @@ This demonstrates the overall concept effectively, but is short of a truly usefu
 
 ## Ideas for Further Development
 
-1. Consolidate scattered, piecemeal state-tracking across Web UI application into a production-grade state system, e.g.
+1. Add testing framework to cover data manipulation code.
+2. Consolidate scattered, piecemeal state-tracking across Web UI application into a production-grade state system, e.g.
    Zustand.
-2. Update table definitions to add columns from a more detailed table definition than exists in the database.
+3. Update table definitions to add columns from a more detailed table definition than exists in the database.
     1. If the declared table DDL does not match that currently in Supabase, the user should be informed.
     2. Options presented should be:
         1. Strip columns not in database from the in-memory model and upsert.
         2. Add columns not in the database, then upsert from in-memory model.
-3. Make the Reactflow an editable renderer
+4. Make the Reactflow an editable renderer
     1. adding/removing connections updates the in-memory model.
     2. Nodes can be added or deleted.
     3. Working design principle at present is "pushes to Supabase are additive, never subtractive".
@@ -27,16 +28,16 @@ This demonstrates the overall concept effectively, but is short of a truly usefu
         3. Implied outcome is that transient nodes/edges will be culled from a push, but deleting already persisted ones
            only cleans up the working space.
     4. Non-protected data (so excluding PK, anchor) for a node/row can be edited and upserted with supabase-push.
-4. Basic configurable graph layout in the Reactflow renderer:
+5. Basic configurable graph layout in the Reactflow renderer:
    1. +/- spacing between nodes (siblings and generational spacing)
    2. Choose top/left/bottom/right as the root side of the viewport.
-5. Advanced graph layout configuration:
+6. Advanced graph layout configuration:
    1. Optional size scaling in sibling axis according to any chosen number field (in the example we'd want `estimate_hours`)
    2. Gantt chart layout algorithm:
       1. Serial dependencies create ranking along one axis
       2. Compositional relationships create ranking along the other axis
       3. General principle: for up to two chosen relationships, each is used to rank along a specific axis for "critical path" style layout
-6. Improve layout of Web UI.
+7. Improve layout of Web UI.
    1. Collect together IO buttons.
    2. Make the text editor box resizeable - currently only three lines are ever visible
    3. Split the Reactflow renderer and everything else into two separate containers
@@ -44,3 +45,4 @@ This demonstrates the overall concept effectively, but is short of a truly usefu
       2. Either left or right container can be collapsed/hidden.
       3. Split point of pane can be adjusted to show more of left or right (this should be a separate control from collapsing, which restores wherever the split point is set)
    4. Mantine has tools to achieve all these UI elements
+   5. Validation Errors above Editor window?
