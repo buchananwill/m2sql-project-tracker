@@ -22,6 +22,18 @@ export async function pullFromSupabase(
     console.log(`Pulling database "${databaseName}" from Supabase`);
   }
 
+  // Step 1: Pull metadata FIRST to know which tables are junction tables
+  const arrowMappings = await pullMetadata(supabase, verbose);
+  const junctionTableNamesFromMetadata = new Set(
+    arrowMappings.map(m => m.junctionTable)
+  );
+
+  if (verbose && arrowMappings.length > 0) {
+    console.log(`Found ${arrowMappings.length} arrow mappings for junction tables:`,
+      Array.from(junctionTableNamesFromMetadata));
+  }
+
+  // Step 2: Get all table names and schemas
   const tableNames = await getTableNames(supabase, excludePattern);
 
   if (verbose) {
@@ -34,12 +46,23 @@ export async function pullFromSupabase(
     tableSchemas.set(tableName, schema);
   }
 
+  // Step 3: Separate based on metadata (preferred) or schema fallback
   const dataTables = tableNames.filter(name => {
+    // If we have metadata, use it to identify junction tables
+    if (junctionTableNamesFromMetadata.size > 0) {
+      return !junctionTableNamesFromMetadata.has(name);
+    }
+    // Fallback to schema-based detection
     const schema = tableSchemas.get(name);
     return !isJunctionTable(schema);
   });
 
   const junctionTableNames = tableNames.filter(name => {
+    // If we have metadata, use it
+    if (junctionTableNamesFromMetadata.size > 0) {
+      return junctionTableNamesFromMetadata.has(name);
+    }
+    // Fallback to schema-based detection
     const schema = tableSchemas.get(name);
     return isJunctionTable(schema);
   });
@@ -76,8 +99,7 @@ export async function pullFromSupabase(
     });
   }
 
-  const arrowMappings = await pullMetadata(supabase, verbose);
-
+  // Metadata was already pulled at the beginning
   return {
     name: databaseName,
     anchor: `db_${databaseName}`,
@@ -145,6 +167,13 @@ async function fetchJunctionRows(
   return (data || []).map((row: any, index: number) => {
     const anchors = resolveJunctionAnchors(row, fkColumns, idToAnchorMap);
     const { label, ...otherColumns } = row;
+
+    // Debug: check if anchors were resolved
+    if (verbose && (!anchors._lhs_anchor || !anchors._rhs_anchor)) {
+      console.warn(`  ⚠ Could not resolve anchors for junction row in ${tableName}:`,
+        `FK columns: [${fkColumns.join(', ')}]`,
+        `Values: [${fkColumns.map((col: string) => row[col]).join(', ')}]`);
+    }
 
     const columns: Record<string, any> = {
       ...anchors,
