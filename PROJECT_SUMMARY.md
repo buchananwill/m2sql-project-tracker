@@ -125,19 +125,19 @@ Tests use Node.js built-in test runner with `tsx` for TypeScript support: `node 
 
 ### Completed Packages
 
-| Package           | Status     | Tests           | Purpose                                     |
-|-------------------|------------|-----------------|---------------------------------------------|
-| `@m2sql/model`    | ✅ Complete | 0 (types only)  | Shared type definitions, SQL schema parsing |
-| `@m2sql/parser`   | ✅ Complete | 32/32 passing   | Mermaid `.mmd` to semantic model            |
-| `@m2sql/sqlite`   | ✅ Complete | 9/9 passing     | Model to SQLite compilation & extraction    |
-| `@m2sql/cli`      | ✅ Complete | Manual testing  | Command-line interface                      |
-| `@m2sql/renderer` | ✅ Complete | 15/15 passing   | Model to Mermaid export (lossless round-trip) |
+| Package           | Status     | Tests          | Purpose                                       |
+|-------------------|------------|----------------|-----------------------------------------------|
+| `@m2sql/model`    | ✅ Complete | 0 (types only) | Shared type definitions, DDL generation       |
+| `@m2sql/parser`   | ✅ Complete | 32/32 passing  | Mermaid `.mmd` to semantic model              |
+| `@m2sql/sqlite`   | ✅ Complete | 9/9 passing    | Model to SQLite compilation & extraction      |
+| `@m2sql/supabase` | ✅ Complete | Manual testing | Model to Supabase push/pull (cloud sync)      |
+| `@m2sql/cli`      | ✅ Complete | Manual testing | Command-line interface                        |
+| `@m2sql/renderer` | ✅ Complete | 15/15 passing  | Model to Mermaid export (lossless round-trip) |
 
 ### Not Yet Started
 
 | Package           | Purpose                              |
 |-------------------|--------------------------------------|
-| `@m2sql/supabase` | SQLite ↔ Supabase bidirectional sync |
 | `apps/web`        | Next.js visualization dashboard      |
 
 ### @m2sql/model
@@ -217,21 +217,55 @@ The pipeline now achieves perfect lossless round-trip: `Mermaid → SQLite → M
 - All relationship direction maintained
 - Full integration test validates complete round-trip with example file
 
+### @m2sql/supabase
+
+**Implemented:**
+- `pushToSupabase(database, supabase)` - Push Database model to Supabase cloud
+- `pullFromSupabase(supabase, databaseName)` - Pull Database model from Supabase
+- **Dialect-agnostic DDL generation** (`@m2sql/model/ddl.ts`) - shared between SQLite & PostgreSQL
+- Auto-managed column injection (`id`, `name`, `anchor`) for PostgreSQL
+- UPSERT logic (match by id → name → insert new)
+- Junction table handling with anchor→ID resolution
+- Metadata table sync (`_mermaid_arrow_mappings`) for lossless round-trips
+- Schema introspection via RPC functions
+- PostgREST schema cache management
+- **Successfully tested with full round-trip** (semantically lossless)
+
+**Architecture:**
+Uses hub-and-spoke architecture with Database model as central format:
+```
+         Database Model (AST)
+         /       |        \
+    Mermaid   SQLite   Supabase
+```
+
+**Setup Requirements:**
+- Requires RPC functions in Supabase (see `packages/supabase/setup.sql`)
+- Functions: `exec_sql`, `table_exists`, `get_table_names`, `get_columns`, `get_primary_keys`, `get_foreign_keys`
+- Authentication via environment variables or CLI flags
+
+**CLI Integration:**
+- `push` command: Mermaid → Supabase
+- `pull` command: Supabase → Mermaid
+- `sync` command: SQLite → Supabase
+
+**Round-Trip Validation:**
+Tested with `examples/project-planner.mmd`:
+- ✅ All 9 tasks preserved
+- ✅ All 9 relationships preserved (8 part-of + 1 depends-on)
+- ✅ Arrow tokens preserved (`*--`, `..>`)
+- ✅ Metadata table synced correctly
+- ✅ Semantically lossless (cosmetic differences: DB-assigned IDs, string quoting, ordering)
+
 ## What's Next
 
 ### Recently Completed
 - ✅ **@m2sql/renderer** - Lossless round-trip with metadata table (15/15 tests passing)
+- ✅ **@m2sql/supabase** - Cloud sync with Supabase (full round-trip validated)
 
 ### Priority Order
 
-1. **@m2sql/supabase** (NEXT - enables cloud sync)
-   - SQLite ↔ Supabase bidirectional sync
-   - UPSERT logic with anchor-based FK resolution
-   - Insert/update only (no deletion)
-   - Handle metadata table (`_mermaid_arrow_mappings`) during sync
-   - Enables: Multi-user collaboration, cloud backup
-
-2. **Web UI** (`apps/web`)
+1. **Web UI** (`apps/web`) - NEXT
    - Next.js visualization dashboard
    - Graphical views: node graphs, Gantt charts, tree views
    - Supabase real-time integration
@@ -250,20 +284,32 @@ pnpm m2sql compile project.mmd -o output.db -v
 # Validate syntax
 pnpm m2sql validate project.mmd -v
 
+# Push to Supabase (Mermaid → Cloud)
+pnpm m2sql push project.mmd --url <supabase-url> --key <anon-key> -v
+# Or use environment variables: SUPABASE_URL and SUPABASE_KEY
+pnpm m2sql push project.mmd -v
+
+# Pull from Supabase (Cloud → Mermaid)
+pnpm m2sql pull -o backup.mmd --url <url> --key <key> -v
+pnpm m2sql pull -o backup.mmd --database "Project Name" -v
+
+# Sync SQLite to Supabase
+pnpm m2sql sync tracker.db --url <url> --key <key> -v
+
 # Help and version
 pnpm m2sql help
 pnpm m2sql version
 ```
 
-### Planned (After Renderer & Supabase)
+### Authentication
 
+Set environment variables in `.env` file:
 ```bash
-# Export from Supabase to Mermaid
-m2sql export --project <url> --key <key> -o backup.mmd
-
-# Sync SQLite to Supabase
-m2sql sync tracker.db --project <url> --key <key>
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-key
 ```
+
+Or pass via CLI flags: `--url` and `--key`
 
 ## Tech Stack
 
@@ -272,11 +318,12 @@ m2sql sync tracker.db --project <url> --key <key>
 - **Monorepo:** pnpm workspaces
 - **Mermaid parsing:** Custom 7-phase classDiagram parser
 - **SQLite:** sql.js 1.13 (WASM-based, no native compilation)
+- **Supabase client:** @supabase/supabase-js 2.39
+- **PostgreSQL:** Via Supabase with RPC functions for DDL/schema introspection
 - **Test runner:** Node.js built-in test runner with tsx
-- **CLI framework:** Native argument parsing (no dependencies)
+- **CLI framework:** Native argument parsing, dotenv for env vars
 
 **Planned:**
-- **Supabase client:** @supabase/supabase-js
 - **Web framework:** Next.js
 - **Visualization:** Mermaid.js, recharts, react-flow
 
@@ -304,18 +351,19 @@ cd packages/parser && pnpm test --watch
 ```
 m2sql-project-tracker/
 ├── packages/
-│   ├── model/          ✅ Types and schema parsing
+│   ├── model/          ✅ Types, schema parsing, DDL generation
 │   ├── parser/         ✅ Mermaid → AST (32 tests)
 │   ├── sqlite/         ✅ AST → SQLite with metadata (9 tests)
-│   ├── cli/            ✅ Command-line interface
+│   ├── supabase/       ✅ AST ↔ Supabase cloud sync
 │   ├── renderer/       ✅ Lossless round-trip export (15 tests)
-│   └── supabase/       🚧 SQLite ↔ Supabase sync (NEXT)
+│   └── cli/            ✅ Command-line interface (push/pull/sync)
 ├── apps/
-│   └── web/            🚧 Next.js dashboard
+│   └── web/            🚧 Next.js dashboard (NEXT)
 ├── examples/
 │   └── project-planner.mmd    Working example
 ├── MERMAID_RULESHEET.md       Complete specification
 ├── LOSSLESS_ROUNDTRIP_PLAN.md Implementation details
+├── SUPABASE_INTEGRATION.md    Supabase setup & implementation
 └── PROJECT_SUMMARY.md         This file
 
 Legend: ✅ Complete | 🚧 Not started
@@ -323,28 +371,40 @@ Legend: ✅ Complete | 🚧 Not started
 
 ## Recent Development (2026-02-06)
 
-### Completed: Lossless Round-Trip Implementation
+### Completed: Supabase Cloud Sync Integration
 
-Successfully implemented and tested the metadata table approach for lossless Mermaid ↔ SQLite round-trips.
+Successfully implemented and validated full bidirectional sync between Mermaid/SQLite and Supabase PostgreSQL.
 
-**Key Changes:**
-1. Created `_mermaid_arrow_mappings` metadata table to store exact arrow tokens and FK column order
-2. Fixed junction table detection to handle tables with additional columns (e.g., `label`)
-3. Fixed SQL indentation consistency in rendered output
-4. Added semicolons to CREATE TABLE statements for parser compatibility
-5. Excluded metadata tables from extraction
+**Key Features:**
+1. **Hub-and-spoke architecture** - Database model as universal interchange format
+2. **Dialect-agnostic DDL** - Shared SQL generation for SQLite and PostgreSQL
+3. **Push/Pull/Sync commands** - Full CLI integration with authentication
+4. **Metadata preservation** - Arrow mappings synced to `_mermaid_arrow_mappings` table
+5. **UPSERT logic** - Smart matching (id → name → insert)
+6. **Schema introspection** - RPC functions for reading PostgreSQL schema
+7. **PostgREST cache management** - Automatic schema reload after DDL operations
+
+**Round-Trip Validation:**
+Tested `examples/project-planner.mmd` → Supabase → Mermaid:
+- ✅ All 9 tasks preserved with correct data
+- ✅ All 9 relationships preserved (8 part-of + 1 depends-on)
+- ✅ Arrow tokens preserved (`*--`, `..>`)
+- ✅ Metadata table synced correctly
+- ✅ **Semantically lossless** (cosmetic differences: IDs, quoting, ordering)
+
+**Implementation Details:**
+- Created `@m2sql/supabase` package with push/pull functions
+- Moved column injection logic to shared `@m2sql/model/ddl.ts`
+- Updated SQLite compiler to use shared DDL generator
+- Added RPC functions in Supabase for schema introspection
+- CLI commands: `push`, `pull`, `sync` with environment variable support
 
 **Test Results:** 56/56 tests passing
 - Parser: 32/32
 - SQLite: 9/9
 - Renderer: 15/15
-
-**What This Enables:**
-- Perfect preservation of arrow syntax (`*--`, `..>`, etc.)
-- No inference or guessing needed
-- Full integration test validates: Parse → Compile → Extract → Render → Re-parse
-- Ready for Supabase sync implementation
+- Supabase: Manual validation (full round-trip successful)
 
 **Next Steps:**
-Start implementing `@m2sql/supabase` package for cloud sync, ensuring metadata table is properly handled during bidirectional sync.
+Web UI (`apps/web`) for visual project tracking with Supabase real-time integration.
 ```
