@@ -8,16 +8,22 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
+    "dev": "tsx --env-file=../../.env src/index.ts",
     "test": "node --test --import tsx src/**/*.test.ts"
   },
   "dependencies": {
+    "@m2sql/model": "workspace:*",
     "@m2sql/parser": "workspace:*",
+    "@m2sql/renderer": "workspace:*",
     "@m2sql/sqlite": "workspace:*",
-    "@m2sql/model": "workspace:*"
+    "@m2sql/supabase": "workspace:*",
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^17.2.4",
+    "sql.js": "^1.10.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "@types/sql.js": "^1.4.9",
     "tsx": "^4.21.0",
     "typescript": "^5.7.3"
   }
