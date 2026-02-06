@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Container, Grid, Title, Paper, Text, Stack, Badge } from '@mantine/core';
 import { parseMermaid } from '@m2sql/parser';
 import type { Database } from '@m2sql/model';
@@ -16,7 +16,8 @@ export default function Home() {
   const [errors, setErrors] = useState<string[]>([]);
   const [dataSource, setDataSource] = useState<'editor' | 'supabase' | null>(null);
 
-  const handleParse = (text: string) => {
+  const handleParse = useCallback((text: string) => {
+    console.log('[handleParse] Called with text length:', text.length);
     setMermaidText(text);
 
     if (!text.trim()) {
@@ -28,33 +29,47 @@ export default function Home() {
 
     try {
       const result = parseMermaid(text);
+      console.log('[handleParse] Parse result:', {
+        databases: result.databases?.length,
+        errors: result.errors?.length,
+      });
 
       if (result.errors && result.errors.length > 0) {
+        console.log('[handleParse] Parse errors:', result.errors);
         setErrors(result.errors.map(e => e.message));
         setDatabase(null);
         setDataSource(null);
       } else {
         setErrors([]);
         if (result.databases && result.databases.length > 0) {
-          setDatabase(result.databases[0]!);
+          const db = result.databases[0]!;
+          console.log('[handleParse] Setting database:', {
+            name: db.name,
+            tables: db.tables.length,
+            arrowMappings: db.arrowMappings?.length,
+          });
+          setDatabase(db);
           setDataSource('editor');
         } else {
+          console.log('[handleParse] No databases found in result');
           setDatabase(null);
           setDataSource(null);
         }
       }
     } catch (err) {
+      console.error('[handleParse] Parse exception:', err);
       setErrors([err instanceof Error ? err.message : 'Unknown parse error']);
       setDatabase(null);
       setDataSource(null);
     }
-  };
+  }, []);
 
-  const handleFileLoad = (content: string, filename: string) => {
+  const handleFileLoad = useCallback((content: string, filename: string) => {
+    console.log('[handleFileLoad] Called with filename:', filename, 'content length:', content.length);
     handleParse(content);
-  };
+  }, [handleParse]);
 
-  const handlePullSuccess = (result: any) => {
+  const handlePullSuccess = useCallback((result: any) => {
     if (result.database) {
       // Update the in-memory database model
       setDatabase(result.database);
@@ -65,7 +80,7 @@ export default function Home() {
       // In the future, we could render the database back to Mermaid text
       setMermaidText('');
     }
-  };
+  }, []);
 
   return (
     <Container size="xl" py="xl">

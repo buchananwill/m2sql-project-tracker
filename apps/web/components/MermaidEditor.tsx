@@ -1,7 +1,7 @@
 'use client';
 
 import { Textarea, Paper } from '@mantine/core';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDebouncedValue } from '@mantine/hooks';
 
 interface MermaidEditorProps {
@@ -16,17 +16,50 @@ export function MermaidEditor({ value, onChange }: MermaidEditorProps) {
   // Debounce the local value before notifying parent
   const [debouncedValue] = useDebouncedValue(localValue, 500);
 
+  // Keep stable reference to onChange
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  // Track if we're syncing from external source to prevent stale updates
+  const isSyncingRef = useRef(false);
+
   // Sync external value changes (e.g., from file upload)
   useEffect(() => {
+    console.log('[MermaidEditor] Value prop changed, length:', value.length);
+
+    // Mark that we're syncing from external source
+    isSyncingRef.current = true;
     setLocalValue(value);
+
+    // Clear sync flag after a short delay (longer than debounce)
+    const timer = setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 600);
+
+    return () => clearTimeout(timer);
   }, [value]);
 
   // Notify parent when debounced value changes
   useEffect(() => {
-    if (debouncedValue !== value) {
-      onChange(debouncedValue);
+    console.log('[MermaidEditor] Debounced value updated, length:', debouncedValue.length);
+    console.log('[MermaidEditor] Comparing with value prop, length:', value.length);
+    console.log('[MermaidEditor] isSyncing:', isSyncingRef.current);
+
+    // Don't notify if we're currently syncing from external source
+    if (isSyncingRef.current) {
+      console.log('[MermaidEditor] Skipping onChange - currently syncing from external source');
+      return;
     }
-  }, [debouncedValue, onChange, value]);
+
+    if (debouncedValue !== value) {
+      console.log('[MermaidEditor] Values differ, calling onChange');
+      onChangeRef.current(debouncedValue);
+    } else {
+      console.log('[MermaidEditor] Values same, not calling onChange');
+    }
+  }, [debouncedValue, value]);
 
   return (
     <Paper shadow="sm" p="md" withBorder>

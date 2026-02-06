@@ -12,11 +12,15 @@ export function FileUpload({ onFileLoad }: FileUploadProps) {
   const [file, setFile] = useState<File | null>(null);
 
   const handleFile = async (selectedFile: File | null) => {
+    console.log('[FileUpload] handleFile called with:', selectedFile?.name);
     if (!selectedFile) return;
 
     setFile(selectedFile);
     const text = await selectedFile.text();
+    console.log('[FileUpload] File text length:', text.length);
+    console.log('[FileUpload] First 100 chars:', text.substring(0, 100));
     onFileLoad(text, selectedFile.name);
+    console.log('[FileUpload] onFileLoad called');
   };
 
   return (
