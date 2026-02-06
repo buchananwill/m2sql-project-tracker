@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, Table, Row } from '@m2sql/model';
+import type { Database, Table, Row, ArrowMapping } from '@m2sql/model';
 import type { PullOptions } from './types.js';
 import {
   getTableNames,
@@ -89,7 +89,18 @@ export async function pullFromSupabase(
 
   for (const tableName of junctionTableNames) {
     const schema = tableSchemas.get(tableName);
-    const rows = await fetchJunctionRows(supabase, tableName, schema, idToAnchorMap, verbose);
+
+    // Find arrow mapping for this junction table
+    const arrowMapping = arrowMappings.find(m => m.junctionTable === tableName);
+
+    const rows = await fetchJunctionRows(
+      supabase,
+      tableName,
+      schema,
+      idToAnchorMap,
+      arrowMapping,
+      verbose
+    );
 
     tables.push({
       name: tableName,
@@ -148,6 +159,7 @@ async function fetchJunctionRows(
   tableName: string,
   schema: any,
   idToAnchorMap: Map<number, string>,
+  arrowMapping: { leftColumn: string; rightColumn: string } | undefined,
   verbose: boolean
 ): Promise<Row[]> {
   const { data, error } = await supabase
@@ -162,7 +174,19 @@ async function fetchJunctionRows(
     console.log(`  Fetched ${data.length} junction rows from ${tableName}`);
   }
 
-  const fkColumns = schema.foreignKeys.map((fk: any) => fk.columnName);
+  // Use arrow mapping to get FK columns (preferred) or fall back to schema
+  let fkColumns: string[];
+  if (arrowMapping) {
+    fkColumns = [arrowMapping.leftColumn, arrowMapping.rightColumn];
+    if (verbose) {
+      console.log(`  Using arrow mapping for FK columns: [${fkColumns.join(', ')}]`);
+    }
+  } else {
+    fkColumns = schema.foreignKeys.map((fk: any) => fk.columnName);
+    if (verbose && fkColumns.length === 0) {
+      console.warn(`  ⚠ No FK columns found in schema or arrow mapping for ${tableName}`);
+    }
+  }
 
   return (data || []).map((row: any, index: number) => {
     const anchors = resolveJunctionAnchors(row, fkColumns, idToAnchorMap);
