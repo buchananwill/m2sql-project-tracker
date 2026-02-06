@@ -1,6 +1,6 @@
 'use client';
 
-import { Textarea, Paper } from '@mantine/core';
+import { Textarea, Paper, Box } from '@mantine/core';
 import { useState, useEffect, useRef } from 'react';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useAppStore } from '@/stores/useAppStore';
@@ -70,21 +70,29 @@ export function MermaidEditor() {
   }, [debouncedValue, mermaidText]);
 
   return (
-    <Paper shadow="sm" p="md" withBorder>
-      <Textarea
-        label="Mermaid Diagram"
-        placeholder="Paste or type your Mermaid classDiagram..."
-        minRows={20}
-        maxRows={30}
-        value={localValue}
-        onChange={(e) => setLocalValue(e.currentTarget.value)}
-        styles={{
-          input: {
-            fontFamily: 'monospace',
-            fontSize: '0.9rem',
-          },
-        }}
-      />
-    </Paper>
+    <Box
+      style={{
+        resize: 'vertical',
+        overflow: 'auto',
+        minHeight: '200px',
+        maxHeight: '600px',
+      }}
+    >
+      <Paper shadow="sm" p="md" withBorder>
+        <Textarea
+          label="Mermaid Diagram"
+          placeholder="Paste or type your Mermaid classDiagram..."
+          minRows={10}
+          value={localValue}
+          onChange={(e) => setLocalValue(e.currentTarget.value)}
+          styles={{
+            input: {
+              fontFamily: 'monospace',
+              fontSize: '0.9rem',
+            },
+          }}
+        />
+      </Paper>
+    </Box>
   );
 }

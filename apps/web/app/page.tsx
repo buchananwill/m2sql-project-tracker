@@ -1,11 +1,19 @@
 'use client';
 
 import { useCallback } from 'react';
-import { Container, Grid, Title, Paper, Text, Stack, Badge } from '@mantine/core';
-import { FileUpload } from '@/components/FileUpload';
+import {
+  AppShell,
+  Burger,
+  Group,
+  Title,
+  Paper,
+  Text,
+  Stack,
+  Badge,
+} from '@mantine/core';
+import { IOControls } from '@/components/IOControls';
 import { MermaidEditor } from '@/components/MermaidEditor';
 import { ValidationDisplay } from '@/components/ValidationDisplay';
-import { SyncControls } from '@/components/SyncControls';
 import { DiagramRenderer } from '@/components/DiagramRenderer';
 import { useAppStore } from '@/stores/useAppStore';
 
@@ -15,6 +23,10 @@ export default function Home() {
   const mermaidText = useAppStore((state) => state.mermaidText);
   const dataSource = useAppStore((state) => state.dataSource);
   const parseAndSetDatabase = useAppStore((state) => state.parseAndSetDatabase);
+
+  // UI state for sidebar
+  const sidebarCollapsed = useAppStore((state) => state.uiState.sidebarCollapsed);
+  const toggleSidebar = useAppStore((state) => state.toggleSidebar);
 
   const handleFileLoad = useCallback(
     (content: string, filename: string) => {
@@ -30,70 +42,69 @@ export default function Home() {
   );
 
   return (
-    <Container size="xl" py="xl">
-      <Title order={1} mb="xl">
-        m2sql Project Tracker
-      </Title>
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{
+        width: 400,
+        breakpoint: 'sm',
+        collapsed: { mobile: sidebarCollapsed, desktop: sidebarCollapsed },
+      }}
+      padding="md"
+    >
+      <AppShell.Header>
+        <Group h="100%" px="md" justify="space-between">
+          <Group>
+            <Burger
+              opened={!sidebarCollapsed}
+              onClick={toggleSidebar}
+              size="sm"
+            />
+            <Title order={2}>m2SQL Project Tracker</Title>
+          </Group>
+          {dataSource && (
+            <Badge
+              size="lg"
+              color={dataSource === 'supabase' ? 'green' : 'blue'}
+              variant="light"
+            >
+              {dataSource === 'supabase' ? 'Supabase' : 'Editor'}
+            </Badge>
+          )}
+        </Group>
+      </AppShell.Header>
 
-      <Grid gutter="lg">
-        {/* Left column: Editor and file upload */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Stack gap="md">
-            <FileUpload onFileLoad={handleFileLoad} />
+      <AppShell.Navbar p="md">
+        <Stack gap="lg" style={{ height: '100%', overflow: 'auto' }}>
+          <IOControls onFileLoad={handleFileLoad} />
 
-            <MermaidEditor />
+          <MermaidEditor />
 
-            <ValidationDisplay />
+          <ValidationDisplay />
 
-            {database && (
-              <Paper p="md" withBorder>
-                <Stack gap="xs">
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text size="sm" fw={500}>
-                      Database Info
-                    </Text>
-                    {dataSource && (
-                      <Badge
-                        size="sm"
-                        color={dataSource === 'supabase' ? 'green' : 'blue'}
-                        variant="light"
-                      >
-                        {dataSource === 'supabase'
-                          ? 'Pulled from Supabase'
-                          : 'From Editor'}
-                      </Badge>
-                    )}
-                  </div>
-                  <Text size="sm" c="dimmed">
-                    Name: {database.name}
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    Tables: {database.tables.length}
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    Arrow Mappings: {database.arrowMappings?.length || 0}
-                  </Text>
-                </Stack>
-              </Paper>
-            )}
-          </Stack>
-        </Grid.Col>
+          {database && (
+            <Paper p="md" withBorder>
+              <Stack gap="xs">
+                <Text size="sm" fw={500}>
+                  Database Info
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Name: {database.name}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Tables: {database.tables.length}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Arrow Mappings: {database.arrowMappings?.length || 0}
+                </Text>
+              </Stack>
+            </Paper>
+          )}
+        </Stack>
+      </AppShell.Navbar>
 
-        {/* Right column: Visualization and sync controls */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Stack gap="md">
-            <SyncControls />
-
-            <DiagramRenderer />
-          </Stack>
-        </Grid.Col>
-      </Grid>
-    </Container>
+      <AppShell.Main>
+        <DiagramRenderer />
+      </AppShell.Main>
+    </AppShell>
   );
 }
