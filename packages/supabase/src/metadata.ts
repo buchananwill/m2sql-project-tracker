@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ArrowMapping } from '@m2sql/model';
+import { reloadSchemaCache } from './schema.js';
 
 const METADATA_TABLE = '_mermaid_arrow_mappings';
 
@@ -13,6 +14,21 @@ CREATE TABLE IF NOT EXISTS ${METADATA_TABLE} (
   UNIQUE (junction_table, left_column, right_column)
 );
 `;
+
+async function checkMetadataTableExists(
+  supabase: SupabaseClient
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('table_exists', {
+    table_name_param: METADATA_TABLE
+  });
+
+  if (error) {
+    // If the RPC fails, assume table doesn't exist
+    return false;
+  }
+
+  return data === true;
+}
 
 export async function createMetadataTable(
   supabase: SupabaseClient
@@ -35,7 +51,21 @@ export async function pushMetadata(
     console.log(`Syncing ${arrowMappings.length} arrow mappings to metadata table`);
   }
 
-  await createMetadataTable(supabase);
+  // Check if metadata table exists
+  const tableExists = await checkMetadataTableExists(supabase);
+
+  if (!tableExists) {
+    await createMetadataTable(supabase);
+
+    // Reload schema cache so PostgREST knows about the new table
+    try {
+      await reloadSchemaCache(supabase);
+      // Give PostgREST a moment to process
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    } catch (error) {
+      console.warn(`Could not reload schema cache after creating metadata table: ${error}`);
+    }
+  }
 
   const { error: deleteError } = await supabase
     .from(METADATA_TABLE)
