@@ -15,7 +15,8 @@
       "WebFetch(domain:www.npmjs.com)",
       "Bash(pnpm install:*)",
       "Bash(pnpm -r build:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(grep:*)"
     ]
   }
 }

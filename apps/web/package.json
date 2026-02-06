@@ -7,28 +7,41 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@m2sql/model": "workspace:*",
+    "@m2sql/parser": "workspace:*",
+    "@m2sql/renderer": "workspace:*",
+    "@m2sql/supabase": "workspace:*",
+    "@mantine/core": "^7.15.0",
+    "@mantine/hooks": "^7.15.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "@tabler/icons-react": "^3.29.0",
+    "dagre": "^0.8.5",
+    "immer": "^11.1.3",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@mantine/core": "^7.15.0",
-    "@mantine/hooks": "^7.15.0",
-    "@tabler/icons-react": "^3.29.0",
     "reactflow": "^11.11.0",
-    "dagre": "^0.8.5",
-    "@supabase/supabase-js": "^2.39.0",
-    "@m2sql/parser": "workspace:*",
-    "@m2sql/model": "workspace:*",
-    "@m2sql/supabase": "workspace:*",
-    "@m2sql/renderer": "workspace:*"
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/dagre": "^0.7.52",
     "@types/node": "^20.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/dagre": "^0.7.52",
-    "typescript": "^5.7.0"
+    "@vitejs/plugin-react": "^5.1.3",
+    "@vitest/coverage-v8": "^4.0.18",
+    "jsdom": "^28.0.0",
+    "msw": "^2.12.9",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
   }
 }

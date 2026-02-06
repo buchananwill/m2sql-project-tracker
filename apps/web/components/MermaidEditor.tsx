@@ -3,35 +3,35 @@
 import { Textarea, Paper } from '@mantine/core';
 import { useState, useEffect, useRef } from 'react';
 import { useDebouncedValue } from '@mantine/hooks';
+import { useAppStore } from '@/stores/useAppStore';
 
-interface MermaidEditorProps {
-  value: string;
-  onChange: (value: string) => void;
-}
+export function MermaidEditor() {
+  // Subscribe to store
+  const mermaidText = useAppStore((state) => state.mermaidText);
+  const parseAndSetDatabase = useAppStore((state) => state.parseAndSetDatabase);
 
-export function MermaidEditor({ value, onChange }: MermaidEditorProps) {
   // Local state for immediate UI updates
-  const [localValue, setLocalValue] = useState(value);
+  const [localValue, setLocalValue] = useState(mermaidText);
 
-  // Debounce the local value before notifying parent
+  // Debounce the local value before notifying store
   const [debouncedValue] = useDebouncedValue(localValue, 500);
 
-  // Keep stable reference to onChange
-  const onChangeRef = useRef(onChange);
+  // Keep stable reference to parseAndSetDatabase
+  const parseRef = useRef(parseAndSetDatabase);
   useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
+    parseRef.current = parseAndSetDatabase;
+  }, [parseAndSetDatabase]);
 
   // Track if we're syncing from external source to prevent stale updates
   const isSyncingRef = useRef(false);
 
-  // Sync external value changes (e.g., from file upload)
+  // Sync external value changes (e.g., from file upload or pull)
   useEffect(() => {
-    console.log('[MermaidEditor] Value prop changed, length:', value.length);
+    console.log('[MermaidEditor] Value prop changed, length:', mermaidText.length);
 
     // Mark that we're syncing from external source
     isSyncingRef.current = true;
-    setLocalValue(value);
+    setLocalValue(mermaidText);
 
     // Clear sync flag after a short delay (longer than debounce)
     const timer = setTimeout(() => {
@@ -39,27 +39,35 @@ export function MermaidEditor({ value, onChange }: MermaidEditorProps) {
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [mermaidText]);
 
-  // Notify parent when debounced value changes
+  // Notify store when debounced value changes
   useEffect(() => {
-    console.log('[MermaidEditor] Debounced value updated, length:', debouncedValue.length);
-    console.log('[MermaidEditor] Comparing with value prop, length:', value.length);
+    console.log(
+      '[MermaidEditor] Debounced value updated, length:',
+      debouncedValue.length
+    );
+    console.log(
+      '[MermaidEditor] Comparing with value prop, length:',
+      mermaidText.length
+    );
     console.log('[MermaidEditor] isSyncing:', isSyncingRef.current);
 
     // Don't notify if we're currently syncing from external source
     if (isSyncingRef.current) {
-      console.log('[MermaidEditor] Skipping onChange - currently syncing from external source');
+      console.log(
+        '[MermaidEditor] Skipping onChange - currently syncing from external source'
+      );
       return;
     }
 
-    if (debouncedValue !== value) {
-      console.log('[MermaidEditor] Values differ, calling onChange');
-      onChangeRef.current(debouncedValue);
+    if (debouncedValue !== mermaidText) {
+      console.log('[MermaidEditor] Values differ, calling parseAndSetDatabase');
+      parseRef.current(debouncedValue);
     } else {
-      console.log('[MermaidEditor] Values same, not calling onChange');
+      console.log('[MermaidEditor] Values same, not calling parseAndSetDatabase');
     }
-  }, [debouncedValue, value]);
+  }, [debouncedValue, mermaidText]);
 
   return (
     <Paper shadow="sm" p="md" withBorder>

@@ -2,12 +2,12 @@
 
 import { Alert, List } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
+import { useAppStore } from '@/stores/useAppStore';
 
-interface ValidationDisplayProps {
-  errors: string[];
-}
+export function ValidationDisplay() {
+  // Subscribe to errors from store
+  const errors = useAppStore((state) => state.errors);
 
-export function ValidationDisplay({ errors }: ValidationDisplayProps) {
   if (!errors || errors.length === 0) {
     return null;
   }

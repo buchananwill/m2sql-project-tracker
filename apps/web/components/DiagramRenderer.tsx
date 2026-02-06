@@ -7,15 +7,14 @@ import ReactFlow, {
   MiniMap,
   BackgroundVariant,
 } from 'reactflow';
-import type { Database } from '@m2sql/model';
 import { transformDatabaseToReactFlow } from '@/lib/reactflow-transform';
 import { Paper, Text, Loader, Center } from '@mantine/core';
+import { useAppStore } from '@/stores/useAppStore';
 
-interface DiagramRendererProps {
-  database: Database | null;
-}
+export function DiagramRenderer() {
+  // Subscribe to database from store
+  const database = useAppStore((state) => state.database);
 
-export function DiagramRenderer({ database }: DiagramRendererProps) {
   // Memoize the transformation to avoid recalculating on every render
   const graph = useMemo(() => {
     if (!database) return null;

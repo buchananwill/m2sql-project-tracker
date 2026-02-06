@@ -2,33 +2,27 @@
 
 import { Button, Group, Alert, Stack, Text } from '@mantine/core';
 import { IconCloudUpload, IconCloudDownload } from '@tabler/icons-react';
-import { useState } from 'react';
-import type { Database } from '@m2sql/model';
+import { useAppStore } from '@/stores/useAppStore';
 
-interface SyncControlsProps {
-  database: Database | null;
-  onPushSuccess?: (result: any) => void;
-  onPullSuccess?: (result: any) => void;
-}
-
-export function SyncControls({
-  database,
-  onPushSuccess,
-  onPullSuccess,
-}: SyncControlsProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+export function SyncControls() {
+  // Subscribe to store
+  const database = useAppStore((state) => state.database);
+  const syncState = useAppStore((state) => state.syncState);
+  const setDatabase = useAppStore((state) => state.setDatabase);
+  const updateMermaidText = useAppStore((state) => state.updateMermaidText);
+  const setSyncLoading = useAppStore((state) => state.setSyncLoading);
+  const setSyncError = useAppStore((state) => state.setSyncError);
+  const setSyncSuccess = useAppStore((state) => state.setSyncSuccess);
+  const resetSyncState = useAppStore((state) => state.resetSyncState);
 
   const handlePush = async () => {
     if (!database) {
-      setError('No database to push');
+      setSyncError('No database to push');
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
+    setSyncLoading(true);
+    resetSyncState();
 
     try {
       const res = await fetch('/api/supabase/push', {
@@ -43,19 +37,15 @@ export function SyncControls({
       }
 
       const result = await res.json();
-      setSuccess('Successfully pushed to Supabase!');
-      onPushSuccess?.(result);
+      setSyncSuccess('Successfully pushed to Supabase!');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
+      setSyncError(err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
   const handlePull = async () => {
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
+    setSyncLoading(true);
+    resetSyncState();
 
     try {
       const res = await fetch('/api/supabase/pull', {
@@ -70,12 +60,16 @@ export function SyncControls({
       }
 
       const result = await res.json();
-      setSuccess('Successfully pulled from Supabase!');
-      onPullSuccess?.(result);
+      setSyncSuccess('Successfully pulled from Supabase!');
+
+      // Update the database in store
+      if (result.database) {
+        setDatabase(result.database, 'supabase');
+        // Clear the editor to show we're viewing Supabase data
+        updateMermaidText('');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
+      setSyncError(err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
@@ -85,7 +79,7 @@ export function SyncControls({
         <Button
           leftSection={<IconCloudUpload size={16} />}
           onClick={handlePush}
-          loading={loading}
+          loading={syncState.loading}
           disabled={!database}
         >
           Push to Supabase
@@ -94,21 +88,21 @@ export function SyncControls({
           leftSection={<IconCloudDownload size={16} />}
           variant="outline"
           onClick={handlePull}
-          loading={loading}
+          loading={syncState.loading}
         >
           Pull from Supabase
         </Button>
       </Group>
 
-      {error && (
+      {syncState.error && (
         <Alert color="red" title="Error">
-          {error}
+          {syncState.error}
         </Alert>
       )}
 
-      {success && (
+      {syncState.success && (
         <Alert color="green" title="Success">
-          {success}
+          {syncState.success}
         </Alert>
       )}
 

@@ -1,0 +1,109 @@
+---
+title: database
+config:
+    look: handDrawn
+---
+
+%% CREATE TABLE task (
+%%   id INTEGER NOT NULL DEFAULT nextval('task_id_seq'::regclass),
+%%   name TEXT NOT NULL DEFAULT ''::text,
+%%   anchor TEXT NOT NULL DEFAULT ''::text,
+%%   task_type TEXT,
+%%   hours_estimate INTEGER,
+%%   PRIMARY KEY (id)
+%% );
+%%
+%% CREATE TABLE task_part_of (
+%%   parent_task_id INTEGER NOT NULL,
+%%   child_task_id INTEGER NOT NULL,
+%%   label TEXT,
+%%   PRIMARY KEY (parent_task_id, child_task_id)
+%% );
+%%
+%% CREATE TABLE task_depends_on (
+%%   dependent_task_id INTEGER NOT NULL,
+%%   prerequisite_task_id INTEGER NOT NULL,
+%%   label TEXT,
+%%   PRIMARY KEY (dependent_task_id, prerequisite_task_id)
+%% );
+%%
+%% parent_task_id *-- child_task_id : task_part_of
+%% dependent_task_id ..> prerequisite_task_id : task_depends_on
+
+classDiagram
+
+namespace task {
+    class EAR:::task{
+    id: 1
+    name: "Early Access Release"
+    hours_estimate: 2000
+    task_type: milestone
+    }
+
+    class CGL:::task{
+    id: 2
+    name: "Complete Core Game Loop"
+    hours_estimate: 500
+    task_type: "gameplay logic"
+    }
+
+    class CGL_Spec:::task{
+    id: 3
+    name: "Specification: Core Game Loop"
+    hours_estimate: 16
+    task_type: "initial design"
+    }
+
+    class CGL_Impl:::task{
+    id: 4
+    name: "Implementation: Core Game Loop"
+    hours_estimate: 100
+    task_type: code
+    }
+
+    class CoreContent:::task{
+    id: 5
+    name: "Core Creative Content"
+    }
+
+    class LiftMeshes:::task{
+    id: 6
+    name: "Lift Mesh Assets"
+    hours_estimate: 250
+    task_type: 3d_model
+    }
+
+    class LTM:::task{
+    id: 7
+    name: "Lift Terminal Meshes"
+    hours_estimate: 120
+    task_type: 3d_model
+    }
+
+    class LTM_Alight:::task{
+    id: 9
+    name: "Lift Alighting Terminal Meshes"
+    hours_estimate: 60
+    task_type: 3d_model
+    }
+
+    class LTM_Board:::task{
+    id: 8
+    name: "Lift Boarding Terminal Meshes"
+    hours_estimate: 60
+    task_type: 3d_model
+    }
+
+}
+
+EAR *-- CGL
+EAR *-- CoreContent
+CGL *-- CGL_Spec
+CGL *-- CGL_Impl
+CoreContent *-- LiftMeshes
+LiftMeshes *-- LTM
+LTM *-- LTM_Board
+LTM *-- LTM_Alight
+CGL_Impl ..> CGL_Spec
+
+classDef task fill:#eeeeff,stroke:#00c
