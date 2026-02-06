@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MermaidEditor } from '@/components/MermaidEditor';
 import { MantineProvider } from '@mantine/core';
@@ -13,22 +13,25 @@ function renderWithMantine(ui: React.ReactElement) {
 describe('MermaidEditor', () => {
   beforeEach(() => {
     // Reset store state before each test
-    useAppStore.setState({
-      mermaidText: '',
-      database: null,
-      dataSource: null,
-      errors: [],
+    act(() => {
+      useAppStore.setState({
+        mermaidText: '',
+        database: null,
+        dataSource: null,
+        errors: [],
+      });
     });
   });
 
   it('should render with initial value from store', () => {
-    const initialValue = 'erDiagram\n  tasks {}';
-    useAppStore.setState({ mermaidText: initialValue });
+    act(() => {
+      useAppStore.setState({ mermaidText: 'erDiagram\n  tasks {}' });
+    });
 
     renderWithMantine(<MermaidEditor />);
 
     const textarea = screen.getByRole('textbox', { name: /mermaid diagram/i });
-    expect(textarea).toHaveValue(initialValue);
+    expect(textarea).toHaveValue('erDiagram\n  tasks {}');
   });
 
   it('should call parseAndSetDatabase after debounce delay when typing', async () => {
@@ -55,14 +58,22 @@ describe('MermaidEditor', () => {
     expect(textarea).toHaveValue('');
 
     // Simulate external value change (e.g., file upload)
-    useAppStore.setState({ mermaidText: 'new value from file' });
-
-    await waitFor(() => {
-      expect(textarea).toHaveValue('new value from file');
+    act(() => {
+      useAppStore.setState({ mermaidText: 'new value from file' });
     });
 
+    // Wait for component to sync with store and update its local state
+    await waitFor(
+      () => {
+        expect(textarea).toHaveValue('new value from file');
+      },
+      { timeout: 1000 }
+    );
+
     // Wait a bit longer to ensure state doesn't change back
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    });
 
     expect(textarea).toHaveValue('new value from file');
   }, 10000);
