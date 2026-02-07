@@ -40,6 +40,7 @@ export function transformDatabaseToReactFlow(database: Database): ReactFlowGraph
         id: row.anchor,
         data: {
           label: row.name,
+          name: row.name,  // Include name for filtering
           tableName: table.name,
           ...displayColumns,
         },

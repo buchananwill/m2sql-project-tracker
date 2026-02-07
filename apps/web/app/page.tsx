@@ -10,7 +10,7 @@ import {
   Text,
   Stack,
   Badge,
-  Box,
+  Box, ScrollArea,
 } from '@mantine/core';
 import {
   Panel,
@@ -23,6 +23,7 @@ import { MermaidEditor } from '@/components/MermaidEditor';
 import { ValidationDisplay } from '@/components/ValidationDisplay';
 import { DiagramRenderer } from '@/components/DiagramRenderer';
 import { useAppStore } from '@/stores/useAppStore';
+import {headerHeight} from "@/global-constants";
 
 export default function Home() {
   // Subscribe to store state
@@ -64,7 +65,7 @@ export default function Home() {
   );
 
   return (
-    <AppShell header={{ height: 60 }} padding={0}>
+    <AppShell header={{ height: headerHeight }} padding={0}>
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group>
@@ -87,10 +88,10 @@ export default function Home() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Main style={{ height: 'calc(100vh - 60px)', padding: 0 }}>
+      <AppShell.Main >
         <PanelGroup
           orientation="horizontal"
-          style={{ width: '100%', height: '100%', display: 'flex' }}
+          // style={{ width: '100%', height: '100%', display: 'flex' }}
         >
           <Panel
             id="left-panel"
@@ -100,7 +101,6 @@ export default function Home() {
             maxSize={'70%'}
             collapsible
             collapsedSize={0}
-            style={{ overflow: 'hidden' }}
             onResize={(size) => {
               // Update store when panel size changes
               const isCollapsed = size.inPixels === 0;
@@ -109,7 +109,7 @@ export default function Home() {
               }
             }}
           >
-            <Box p="md" style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+            <ScrollArea p="md" h={`calc(100vh - ${headerHeight}px)`}>
               <Stack gap="lg">
                 <IOControls onFileLoad={handleFileLoad} />
 
@@ -136,7 +136,7 @@ export default function Home() {
                   </Paper>
                 )}
               </Stack>
-            </Box>
+            </ScrollArea>
           </Panel>
 
           <PanelResizeHandle

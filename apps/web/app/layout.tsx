@@ -17,6 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+          <title>m2sql Project Tracker</title>
         <ColorSchemeScript defaultColorScheme="auto" />
       </head>
       <body>

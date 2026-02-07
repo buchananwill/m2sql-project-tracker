@@ -21,7 +21,7 @@ export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
   const textColor = evaluateFilters(data, colorCodingConfig.text) || '#1f2937';
 
   // Extract label and other fields
-  const { label, tableName, ...otherFields } = data;
+  const { label, name, tableName, ...otherFields } = data;
 
   // Filter out internal ReactFlow fields and metadata
   const displayFields = Object.entries(otherFields).filter(

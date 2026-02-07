@@ -10,6 +10,12 @@
   flex-direction: column;
 }
 
+.reactFlowWrapper {
+  height: 100%;
+  width: 100%;
+  flex: 1;
+}
+
 .emptyState,
 .loadingState {
   height: 100%;

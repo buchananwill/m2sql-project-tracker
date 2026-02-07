@@ -64,19 +64,21 @@ export function DiagramRenderer() {
           </ActionIcon>
         </Tooltip>
 
-        <ReactFlow
-          nodes={graph.nodes}
-          edges={graph.edges}
-          nodeTypes={nodeTypes}
-          fitView
-          attributionPosition="bottom-left"
-          minZoom={0.1}
-          maxZoom={2}
-        >
-          <Controls />
-          <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-          <MiniMap nodeStrokeWidth={3} zoomable pannable />
-        </ReactFlow>
+        <div className={styles.reactFlowWrapper}>
+          <ReactFlow
+            nodes={graph.nodes}
+            edges={graph.edges}
+            nodeTypes={nodeTypes}
+            fitView
+            attributionPosition="bottom-left"
+            minZoom={0.1}
+            maxZoom={2}
+          >
+            <Controls />
+            <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+            <MiniMap nodeStrokeWidth={3} zoomable pannable />
+          </ReactFlow>
+        </div>
       </Paper>
 
       <ColorCodingPanel />
