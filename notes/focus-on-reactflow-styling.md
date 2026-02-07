@@ -22,3 +22,16 @@ thus be the focus of the next development sprint.
    2. Fixed width: keeps overall width of graph under control for easier overview.
    3. Fixed both: provides "compact" version of graph for best overview.
 5. Nodes are currently the stock Reactflow look-and-feel - it would be good to stamp a more "branded" style on them. 
+
+
+# Follow Up Comments
+
+- Filters should be able to match multiple fields
+- Debounce filter update to prevent blocking UI
+- Show/hide properties per table (node) type
+- Collapse subtree (hide children in renderer but keep in model)
+- Add/remove edges from layout algorithm
+- Still not about to fix node size and truncate text
+- **BIG STRETCH GOAL** Perist filter set to a new metadata table.
+  - Filters implicitly must be valid against database schema
+  - Pulling from Supabase can also pull filters to restore the users view
