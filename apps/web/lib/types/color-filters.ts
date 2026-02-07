@@ -8,14 +8,16 @@
  */
 
 /**
- * Text match filter - exact string matching
- * Example: status="done" → green
+ * Text match filter - flexible string matching
+ * Supports exact match, contains, and regex
  */
 export type TextMatchRule = {
   type: 'text_match';
   column: string;
-  matches: string;      // Exact text to match
-  color: string;        // Hex color (e.g., "#90ee90")
+  matchType: 'exact' | 'contains' | 'regex';  // Match type
+  pattern: string;       // Text or regex pattern to match
+  ignoreCase?: boolean;  // Ignore case (default: false)
+  color: string;         // Hex color (e.g., "#90ee90")
 };
 
 /**

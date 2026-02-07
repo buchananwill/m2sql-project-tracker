@@ -39,7 +39,7 @@ function evaluateFilter(
 
   switch (filter.type) {
     case 'text_match':
-      return String(value) === filter.matches ? filter.color : null;
+      return evaluateTextMatch(String(value), filter);
 
     case 'numeric_gradient':
       return interpolateGradient(Number(value), filter);
@@ -49,6 +49,49 @@ function evaluateFilter(
 
     default:
       return null;
+  }
+}
+
+/**
+ * Evaluates a text match filter against a string value
+ * Supports exact match, contains, and regex patterns
+ * @param value - The string value to test
+ * @param filter - The text match filter rule
+ * @returns Hex color string if match succeeds, null otherwise
+ */
+function evaluateTextMatch(
+  value: string,
+  filter: import('./types/color-filters').TextMatchRule
+): string | null {
+  const ignoreCase = filter.ignoreCase ?? false;
+
+  try {
+    switch (filter.matchType) {
+      case 'exact': {
+        const valueToCompare = ignoreCase ? value.toLowerCase() : value;
+        const patternToCompare = ignoreCase ? filter.pattern.toLowerCase() : filter.pattern;
+        return valueToCompare === patternToCompare ? filter.color : null;
+      }
+
+      case 'contains': {
+        const valueToCompare = ignoreCase ? value.toLowerCase() : value;
+        const patternToCompare = ignoreCase ? filter.pattern.toLowerCase() : filter.pattern;
+        return valueToCompare.includes(patternToCompare) ? filter.color : null;
+      }
+
+      case 'regex': {
+        const flags = ignoreCase ? 'i' : '';
+        const regex = new RegExp(filter.pattern, flags);
+        return regex.test(value) ? filter.color : null;
+      }
+
+      default:
+        return null;
+    }
+  } catch (error) {
+    // Invalid regex or other error - return null
+    console.warn('Text match filter error:', error);
+    return null;
   }
 }
 

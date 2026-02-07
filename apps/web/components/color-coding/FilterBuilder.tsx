@@ -66,8 +66,15 @@ function SortableFilterItem({
 
   const getFilterLabel = (filter: ColorFilter): string => {
     switch (filter.type) {
-      case 'text_match':
-        return `Text Match: ${filter.column || '(column)'} = "${filter.matches || '(text)'}"`;
+      case 'text_match': {
+        const matchTypeLabel = {
+          exact: '=',
+          contains: 'contains',
+          regex: 'regex',
+        }[filter.matchType];
+        const caseLabel = filter.ignoreCase ? ' (ignore case)' : '';
+        return `Text: ${filter.column || '(column)'} ${matchTypeLabel} "${filter.pattern || '(pattern)'}"${caseLabel}`;
+      }
       case 'numeric_gradient':
         return `Gradient: ${filter.column || '(column)'} (${filter.stops.length} stops)`;
       case 'numeric_bands':
@@ -153,8 +160,10 @@ export function FilterBuilder({ filters, onChange, availableColumns }: FilterBui
         newFilter = {
           type: 'text_match',
           column: '',
-          matches: '',
-          color: '#ffffff',
+          matchType: 'contains',
+          pattern: '',
+          ignoreCase: true,
+          color: '#90ee90',
         };
         break;
       case 'numeric_gradient':
