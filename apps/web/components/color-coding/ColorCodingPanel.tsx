@@ -8,6 +8,7 @@
 import { useMemo } from 'react';
 import { Drawer, Tabs, Stack, Button, Text } from '@mantine/core';
 import { useAppStore } from '@/stores/useAppStore';
+import { transformDatabaseToReactFlow } from '@/lib/reactflow-transform';
 import { FilterBuilder } from './FilterBuilder';
 import type { ColorFilter } from '@/lib/types/color-filters';
 import styles from './ColorCodingPanel.module.css';
@@ -19,21 +20,23 @@ export function ColorCodingPanel() {
   const setColorCodingConfig = useAppStore((state) => state.setColorCodingConfig);
   const database = useAppStore((state) => state.database);
 
-  // Extract available column names from database
+  // Extract available column names from transformed graph nodes
   const availableColumns = useMemo(() => {
     if (!database) return [];
 
+    // Transform database to graph to get actual node data structure
+    const graph = transformDatabaseToReactFlow(database);
     const columns = new Set<string>();
-    for (const table of database.tables) {
-      for (const row of table.rows) {
-        Object.keys(row.columns).forEach((key) => {
-          // Exclude internal fields
-          if (!key.startsWith('_') && key !== 'id' && key !== 'pk') {
-            columns.add(key);
-          }
-        });
-      }
-    }
+
+    // Extract all keys from node data
+    graph.nodes.forEach(node => {
+      Object.keys(node.data).forEach(key => {
+        // Exclude label (it's a display-only field)
+        if (key !== 'label') {
+          columns.add(key);
+        }
+      });
+    });
 
     return Array.from(columns).sort();
   }, [database]);
