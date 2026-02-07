@@ -1,0 +1,9 @@
+/**
+ * TextMatchFilterEditor component styles
+ */
+
+.container {
+  padding: 12px;
+  background-color: var(--mantine-color-gray-0);
+  border-radius: 4px;
+}

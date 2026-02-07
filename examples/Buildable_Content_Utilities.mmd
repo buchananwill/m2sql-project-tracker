@@ -1,0 +1,92 @@
+---
+title: Piste Perfect - Utilities Content
+config:
+    look: handDrawn
+---
+
+%% CREATE TABLE task (
+%%   task_type TEXT,
+%%   hours_estimate INTEGER,
+%%   priority INTEGER,
+%%   status TEXT,
+%%   notes TEXT
+%% );
+%%
+%% CREATE TABLE task_part_of (
+%%   parent_task_id INTEGER REFERENCES task(id),
+%%   child_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (parent_task_id, child_task_id)
+%% );
+%%
+%% CREATE TABLE task_depends_on (
+%%   dependent_task_id INTEGER REFERENCES task(id),
+%%   prerequisite_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (dependent_task_id, prerequisite_task_id)
+%% );
+%%
+%% parent_task_id *-- child_task_id : task_part_of
+%% dependent_task_id ..> prerequisite_task_id : task_depends_on
+
+classDiagram
+
+namespace task {
+    %% ========================================
+    %% TOP-LEVEL MILESTONE (duplicated in all domain files)
+    %% ========================================
+
+    class EAR_Content:::task{
+        name: Early Access - Core Buildable Content
+        task_type: milestone
+        priority: 1
+        notes: All buildable content required for Early Access release
+    }
+
+    %% ========================================
+    %% UTILITIES DOMAIN
+    %% ========================================
+
+    class Utilities:::task{
+        name: Utilities System
+        task_type: milestone
+        priority: 2
+        notes: Essential services for resort operation
+    }
+
+    class Util_Emergency:::task{
+        name: Emergency Services
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 2
+        notes: Safety reputation buff
+    }
+
+    class Util_SkiSchool:::task{
+        name: Ski School
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 2
+        notes: Revenue source
+    }
+
+    class Util_Maintenance:::task{
+        name: Resort Maintenance Building
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 1
+        notes: Essential - maintains piste quality
+    }
+}
+
+%% ========================================
+%% COMPOSITION RELATIONSHIPS
+%% ========================================
+
+EAR_Content *-- Utilities
+
+Utilities *-- Util_Emergency
+Utilities *-- Util_SkiSchool
+Utilities *-- Util_Maintenance
+
+classDef task fill:#e3f2fd,stroke:#1976d2,stroke-width:2px

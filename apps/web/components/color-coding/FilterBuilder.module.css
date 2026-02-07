@@ -1,0 +1,17 @@
+/**
+ * FilterBuilder component styles
+ */
+
+.container {
+  width: 100%;
+}
+
+.filterItem {
+  padding: 12px;
+  background-color: white;
+  cursor: default;
+}
+
+.filterItem:hover {
+  background-color: var(--mantine-color-gray-0);
+}

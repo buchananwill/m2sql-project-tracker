@@ -1,0 +1,151 @@
+---
+title: Piste Perfect - Amenities Content
+config:
+    look: handDrawn
+---
+
+%% CREATE TABLE task (
+%%   task_type TEXT,
+%%   hours_estimate INTEGER,
+%%   priority INTEGER,
+%%   status TEXT,
+%%   notes TEXT
+%% );
+%%
+%% CREATE TABLE task_part_of (
+%%   parent_task_id INTEGER REFERENCES task(id),
+%%   child_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (parent_task_id, child_task_id)
+%% );
+%%
+%% CREATE TABLE task_depends_on (
+%%   dependent_task_id INTEGER REFERENCES task(id),
+%%   prerequisite_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (dependent_task_id, prerequisite_task_id)
+%% );
+%%
+%% parent_task_id *-- child_task_id : task_part_of
+%% dependent_task_id ..> prerequisite_task_id : task_depends_on
+
+classDiagram
+
+namespace task {
+    %% ========================================
+    %% TOP-LEVEL MILESTONE (duplicated in all domain files)
+    %% ========================================
+
+    class EAR_Content:::task{
+        name: Early Access - Core Buildable Content
+        task_type: milestone
+        priority: 1
+        notes: All buildable content required for Early Access release
+    }
+
+    %% ========================================
+    %% AMENITIES DOMAIN
+    %% ========================================
+
+    class Amenities:::task{
+        name: Amenities System
+        task_type: milestone
+        priority: 2
+        notes: Support services for accommodation and guest satisfaction
+    }
+
+    %% --- SHOPS ---
+
+    class Shops:::task{
+        name: Retail Shops
+        task_type: milestone
+        priority: 2
+    }
+
+    class Shop_Grocery:::task{
+        name: Grocery Store
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 2
+        notes: Essential for cabin/chalet accommodation
+    }
+
+    class Shop_Apparel:::task{
+        name: Apparel Shop
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 2
+    }
+
+    class Shop_Equipment:::task{
+        name: Equipment Rental/Sales
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 2
+    }
+
+    class Shop_Tourism:::task{
+        name: Tourism/Souvenir Shop
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 3
+    }
+
+    %% --- ESTABLISHMENTS ---
+
+    class Establishments:::task{
+        name: Food & Beverage Establishments
+        task_type: milestone
+        priority: 2
+    }
+
+    class Estab_Cafe:::task{
+        name: Cafe
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 2
+    }
+
+    class Estab_Bar:::task{
+        name: Bar
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 2
+    }
+
+    class Estab_Restaurant:::task{
+        name: Restaurant
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 2
+        notes: Required for chalets and cheap hotels
+    }
+
+    class Estab_Takeaway:::task{
+        name: Take-away Food
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 2
+    }
+}
+
+%% ========================================
+%% COMPOSITION RELATIONSHIPS
+%% ========================================
+
+EAR_Content *-- Amenities
+
+Amenities *-- Shops
+Amenities *-- Establishments
+
+Shops *-- Shop_Grocery
+Shops *-- Shop_Apparel
+Shops *-- Shop_Equipment
+Shops *-- Shop_Tourism
+
+Establishments *-- Estab_Cafe
+Establishments *-- Estab_Bar
+Establishments *-- Estab_Restaurant
+Establishments *-- Estab_Takeaway
+
+classDef task fill:#e3f2fd,stroke:#1976d2,stroke-width:2px

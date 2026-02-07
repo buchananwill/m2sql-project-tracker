@@ -1,0 +1,12 @@
+/**
+ * ColorCodingPanel component styles
+ */
+
+.drawer {
+  /* Drawer styles are handled by Mantine */
+}
+
+.content {
+  height: 100%;
+  overflow-y: auto;
+}

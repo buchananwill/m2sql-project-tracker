@@ -1,0 +1,283 @@
+---
+title: Piste Perfect - Accommodation Content
+config:
+    look: handDrawn
+---
+
+%% CREATE TABLE task (
+%%   task_type TEXT,
+%%   hours_estimate INTEGER,
+%%   priority INTEGER,
+%%   status TEXT,
+%%   notes TEXT
+%% );
+%%
+%% CREATE TABLE task_part_of (
+%%   parent_task_id INTEGER REFERENCES task(id),
+%%   child_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (parent_task_id, child_task_id)
+%% );
+%%
+%% CREATE TABLE task_depends_on (
+%%   dependent_task_id INTEGER REFERENCES task(id),
+%%   prerequisite_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (dependent_task_id, prerequisite_task_id)
+%% );
+%%
+%% parent_task_id *-- child_task_id : task_part_of
+%% dependent_task_id ..> prerequisite_task_id : task_depends_on
+
+classDiagram
+
+namespace task {
+    %% ========================================
+    %% TOP-LEVEL MILESTONE (duplicated in all domain files)
+    %% ========================================
+
+    class EAR_Content:::task{
+        name: Early Access - Core Buildable Content
+        task_type: milestone
+        priority: 1
+        notes: All buildable content required for Early Access release
+    }
+
+    %% ========================================
+    %% ACCOMMODATION DOMAIN
+    %% ========================================
+
+    class Accom:::task{
+        name: Accommodation System
+        task_type: milestone
+        priority: 2
+        notes: Revenue driver - package holidays with ski passes
+    }
+
+    class Accom_Design:::task{
+        name: Accommodation Design Specification
+        task_type: design
+        hours_estimate: 24
+        priority: 2
+        notes: Define utility dimension mappings, pricing model, visual progression
+    }
+
+    class Accom_Economic:::task{
+        name: Accommodation Economic Integration
+        task_type: economic
+        hours_estimate: 40
+        priority: 2
+        notes: Integrate with supplier/customer system, implement package holiday sales
+    }
+
+    class Accom_Cabin:::task{
+        name: Cabin Accommodation
+        task_type: data_asset
+        priority: 2
+        notes: Single unit, capacity 2-24, highly flexible quality
+    }
+
+    class Accom_Cabin_XXXS:::task{
+        name: Cabin XXXS (2 guests)
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 2
+    }
+
+    class Accom_Cabin_XXS:::task{
+        name: Cabin XXS (4 guests)
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 2
+    }
+
+    class Accom_Cabin_XS:::task{
+        name: Cabin XS (6 guests)
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 3
+    }
+
+    class Accom_Cabin_S:::task{
+        name: Cabin S (8 guests)
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 3
+    }
+
+    class Accom_Cabin_M:::task{
+        name: Cabin M (12 guests)
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 3
+    }
+
+    class Accom_Cabin_L:::task{
+        name: Cabin L (16 guests)
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 4
+    }
+
+    class Accom_Cabin_XL:::task{
+        name: Cabin XL (20 guests)
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 4
+    }
+
+    class Accom_Cabin_XXL:::task{
+        name: Cabin XXL (24 guests)
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 4
+    }
+
+    class Accom_Chalet:::task{
+        name: Chalet Accommodation
+        task_type: data_asset
+        priority: 3
+        notes: Autonomous units in shared building, capacity 16-128
+    }
+
+    class Accom_Chalet_S:::task{
+        name: Chalet Small (16 guests)
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 3
+    }
+
+    class Accom_Chalet_M:::task{
+        name: Chalet Medium (32 guests)
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 3
+    }
+
+    class Accom_Chalet_L:::task{
+        name: Chalet Large (64 guests)
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 4
+    }
+
+    class Accom_Chalet_XL:::task{
+        name: Chalet XLarge (128 guests)
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 4
+    }
+
+    class Accom_Hotel:::task{
+        name: Hotel Accommodation
+        task_type: data_asset
+        priority: 3
+        notes: Dependent units, capacity 32-256, least flexible but biggest return
+    }
+
+    class Accom_Hotel_S:::task{
+        name: Hotel Small (32 guests)
+        task_type: 3d_model
+        hours_estimate: 120
+        priority: 3
+    }
+
+    class Accom_Hotel_M:::task{
+        name: Hotel Medium (64 guests)
+        task_type: 3d_model
+        hours_estimate: 120
+        priority: 3
+    }
+
+    class Accom_Hotel_L:::task{
+        name: Hotel Large (128 guests)
+        task_type: 3d_model
+        hours_estimate: 120
+        priority: 4
+    }
+
+    class Accom_Hotel_XL:::task{
+        name: Hotel XLarge (256 guests)
+        task_type: 3d_model
+        hours_estimate: 120
+        priority: 4
+    }
+
+    %% ========================================
+    %% CROSS-CUTTING SYSTEMS (duplicated as needed)
+    %% ========================================
+
+    %% NOTE: TechTree also appears in Transport.mmd
+    class TechTree:::task{
+        name: Technology Tree System
+        task_type: gameplay
+        hours_estimate: 60
+        priority: 2
+        notes: Upgrades for materials, capacity, comfort, efficiency
+    }
+
+    class BuildMaterials:::task{
+        name: Building Material System
+        task_type: gameplay
+        hours_estimate: 40
+        priority: 3
+        notes: Wood/brick/concrete trade-offs for cost/longevity
+    }
+
+    class Insulation:::task{
+        name: Building Insulation Upgrades
+        task_type: gameplay
+        hours_estimate: 20
+        priority: 3
+        notes: Saves upkeep, improves comfort
+    }
+}
+
+%% ========================================
+%% COMPOSITION RELATIONSHIPS
+%% ========================================
+
+EAR_Content *-- Accom
+EAR_Content *-- TechTree
+EAR_Content *-- BuildMaterials
+EAR_Content *-- Insulation
+
+Accom *-- Accom_Design
+Accom *-- Accom_Economic
+Accom *-- Accom_Cabin
+Accom *-- Accom_Chalet
+Accom *-- Accom_Hotel
+
+Accom_Cabin *-- Accom_Cabin_XXXS
+Accom_Cabin *-- Accom_Cabin_XXS
+Accom_Cabin *-- Accom_Cabin_XS
+Accom_Cabin *-- Accom_Cabin_S
+Accom_Cabin *-- Accom_Cabin_M
+Accom_Cabin *-- Accom_Cabin_L
+Accom_Cabin *-- Accom_Cabin_XL
+Accom_Cabin *-- Accom_Cabin_XXL
+
+Accom_Chalet *-- Accom_Chalet_S
+Accom_Chalet *-- Accom_Chalet_M
+Accom_Chalet *-- Accom_Chalet_L
+Accom_Chalet *-- Accom_Chalet_XL
+
+Accom_Hotel *-- Accom_Hotel_S
+Accom_Hotel *-- Accom_Hotel_M
+Accom_Hotel *-- Accom_Hotel_L
+Accom_Hotel *-- Accom_Hotel_XL
+
+%% ========================================
+%% DEPENDENCY RELATIONSHIPS
+%% ========================================
+
+Accom_Cabin ..> Accom_Design
+Accom_Chalet ..> Accom_Design
+Accom_Hotel ..> Accom_Design
+Accom_Economic ..> Accom_Design
+
+TechTree ..> Accom_Design
+BuildMaterials ..> Accom_Design
+Insulation ..> Accom_Design
+
+classDef task fill:#e3f2fd,stroke:#1976d2,stroke-width:2px

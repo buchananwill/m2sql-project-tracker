@@ -43,7 +43,7 @@ export function transformDatabaseToReactFlow(database: Database): ReactFlowGraph
           tableName: table.name,
           ...displayColumns,
         },
-        type: 'default',
+        type: 'task',
         position: { x: 0, y: 0 }, // Will be positioned by layout
       });
     }

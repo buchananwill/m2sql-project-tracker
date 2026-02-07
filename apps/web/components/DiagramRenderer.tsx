@@ -8,12 +8,20 @@ import ReactFlow, {
   BackgroundVariant,
 } from 'reactflow';
 import { transformDatabaseToReactFlow } from '@/lib/reactflow-transform';
-import { Paper, Text, Loader, Center } from '@mantine/core';
+import { Paper, Text, Loader, ActionIcon, Tooltip } from '@mantine/core';
+import { IconPalette } from '@tabler/icons-react';
 import { useAppStore } from '@/stores/useAppStore';
+import { TaskNode } from '@/components/nodes';
+import { ColorCodingPanel } from '@/components/color-coding/ColorCodingPanel';
+import styles from './DiagramRenderer.module.css';
 
 export function DiagramRenderer() {
   // Subscribe to database from store
   const database = useAppStore((state) => state.database);
+  const setColorCodingPanelOpen = useAppStore((state) => state.setColorCodingPanelOpen);
+
+  // Define custom node types
+  const nodeTypes = useMemo(() => ({ task: TaskNode }), []);
 
   // Memoize the transformation to avoid recalculating on every render
   const graph = useMemo(() => {
@@ -23,45 +31,55 @@ export function DiagramRenderer() {
 
   if (!database) {
     return (
-      <Paper
-        p="xl"
-        withBorder
-        style={{
-          height: '600px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text c="dimmed">Load a Mermaid file to see the diagram</Text>
+      <Paper p="xl" withBorder className={styles.container}>
+        <div className={styles.emptyState}>
+          <Text c="dimmed">Load a Mermaid file to see the diagram</Text>
+        </div>
       </Paper>
     );
   }
 
   if (!graph) {
     return (
-      <Paper p="xl" withBorder style={{ height: '600px' }}>
-        <Center h="100%">
+      <Paper p="xl" withBorder className={styles.container}>
+        <div className={styles.loadingState}>
           <Loader size="lg" />
-        </Center>
+        </div>
       </Paper>
     );
   }
 
   return (
-    <Paper shadow="sm" style={{ height: '600px' }} withBorder>
-      <ReactFlow
-        nodes={graph.nodes}
-        edges={graph.edges}
-        fitView
-        attributionPosition="bottom-left"
-        minZoom={0.1}
-        maxZoom={2}
-      >
-        <Controls />
-        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-        <MiniMap nodeStrokeWidth={3} zoomable pannable />
-      </ReactFlow>
-    </Paper>
+    <>
+      <Paper shadow="sm" className={styles.container} withBorder>
+        <Tooltip label="Color Coding" position="left">
+          <ActionIcon
+            className={styles.toggleButton}
+            size="lg"
+            variant="filled"
+            color="blue"
+            onClick={() => setColorCodingPanelOpen(true)}
+          >
+            <IconPalette size={20} />
+          </ActionIcon>
+        </Tooltip>
+
+        <ReactFlow
+          nodes={graph.nodes}
+          edges={graph.edges}
+          nodeTypes={nodeTypes}
+          fitView
+          attributionPosition="bottom-left"
+          minZoom={0.1}
+          maxZoom={2}
+        >
+          <Controls />
+          <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+          <MiniMap nodeStrokeWidth={3} zoomable pannable />
+        </ReactFlow>
+      </Paper>
+
+      <ColorCodingPanel />
+    </>
   );
 }

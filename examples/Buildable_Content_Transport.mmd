@@ -1,0 +1,779 @@
+---
+title: Piste Perfect - Transport Content
+config:
+    look: handDrawn
+---
+
+%% CREATE TABLE task (
+%%   task_type TEXT,
+%%   hours_estimate INTEGER,
+%%   priority INTEGER,
+%%   status TEXT,
+%%   notes TEXT
+%% );
+%%
+%% CREATE TABLE task_part_of (
+%%   parent_task_id INTEGER REFERENCES task(id),
+%%   child_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (parent_task_id, child_task_id)
+%% );
+%%
+%% CREATE TABLE task_depends_on (
+%%   dependent_task_id INTEGER REFERENCES task(id),
+%%   prerequisite_task_id INTEGER REFERENCES task(id),
+%%   label TEXT,
+%%   PRIMARY KEY (dependent_task_id, prerequisite_task_id)
+%% );
+%%
+%% parent_task_id *-- child_task_id : task_part_of
+%% prerequisite_task_id ..> dependent_task_id : task_depends_on
+
+classDiagram
+
+namespace task {
+    %% ========================================
+    %% TOP-LEVEL MILESTONE (duplicated in all domain files)
+    %% ========================================
+
+    class EAR_Content:::task{
+        name: Early Access - Core Buildable Content
+        task_type: milestone
+        priority: 1
+        notes: All buildable content required for Early Access release
+    }
+
+    %% ========================================
+    %% TRANSPORT DOMAIN
+    %% ========================================
+
+    class Transport:::task{
+        name: Transport System
+        task_type: milestone
+        priority: 1
+        notes: Core game mechanic - ski lifts and pistes
+    }
+
+    %% --- LIFTS ---
+
+    class Lifts:::task{
+        name: Ski Lifts
+        task_type: milestone
+        priority: 1
+        notes: Centerpiece transport for moving guests around resort
+    }
+
+    class Lifts_Design:::task{
+        name: Lift System Design Specification
+        task_type: design
+        hours_estimate: 32
+        priority: 1
+        notes: Define upgrade paths, replacement mechanics, capacity tuning
+    }
+
+    class Drag:::task{
+        name: Drag Lift
+        task_type: data_asset
+        priority: 1
+        notes: Cheapest, slowest, single riders, least comfort
+    }
+
+    class Drag_Terminal_Board:::task{
+        name: Drag Lift Boarding Terminal
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 1
+    }
+
+    class Drag_Terminal_Alight:::task{
+        name: Drag Lift Alighting Terminal
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 1
+    }
+
+    class Drag_Pylon:::task{
+        name: Drag Lift Support Pylon
+        task_type: 3d_model
+        hours_estimate: 30
+        priority: 1
+    }
+
+    class Drag_Vehicle:::task{
+        name: Drag Lift Tow Bar
+        task_type: 3d_model
+        hours_estimate: 20
+        priority: 1
+    }
+
+    class Chair:::task{
+        name: Chair Lift
+        task_type: data_asset
+        priority: 1
+        notes: Capacity 2-8, upgradeable comfort and detachable express
+    }
+
+    class Chair_2:::task{
+        name: Chair Lift 2-Seater
+        task_type: milestone
+        priority: 1
+    }
+
+    class Chair_2_Terminal_Board_Fixed:::task{
+        name: 2-Chair Boarding Terminal (Fixed)
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 1
+    }
+
+    class Chair_2_Terminal_Alight_Fixed:::task{
+        name: 2-Chair Alighting Terminal (Fixed)
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 1
+    }
+
+    class Chair_2_Terminal_Board_Detach:::task{
+        name: 2-Chair Boarding Terminal (Detachable)
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 2
+    }
+
+    class Chair_2_Terminal_Alight_Detach:::task{
+        name: 2-Chair Alighting Terminal (Detachable)
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 2
+    }
+
+    class Chair_2_Pylon:::task{
+        name: 2-Chair Support Pylon
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 1
+    }
+
+    class Chair_2_Vehicle_Basic:::task{
+        name: 2-Chair Vehicle (Basic)
+        task_type: 3d_model
+        hours_estimate: 50
+        priority: 1
+    }
+
+    class Chair_2_Vehicle_Comfort:::task{
+        name: 2-Chair Vehicle (Comfort Upgrade)
+        task_type: 3d_model
+        hours_estimate: 50
+        priority: 2
+    }
+
+    class Chair_2_Vehicle_Bubble:::task{
+        name: 2-Chair Vehicle (Bubble Cabin)
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 3
+    }
+
+    class Chair_4:::task{
+        name: Chair Lift 4-Seater
+        task_type: milestone
+        priority: 1
+    }
+
+    class Chair_4_Terminal_Board_Fixed:::task{
+        name: 4-Chair Boarding Terminal (Fixed)
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 1
+    }
+
+    class Chair_4_Terminal_Alight_Fixed:::task{
+        name: 4-Chair Alighting Terminal (Fixed)
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 1
+    }
+
+    class Chair_4_Terminal_Board_Detach:::task{
+        name: 4-Chair Boarding Terminal (Detachable)
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 2
+    }
+
+    class Chair_4_Terminal_Alight_Detach:::task{
+        name: 4-Chair Alighting Terminal (Detachable)
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 2
+    }
+
+    class Chair_4_Pylon:::task{
+        name: 4-Chair Support Pylon
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 1
+    }
+
+    class Chair_4_Vehicle_Basic:::task{
+        name: 4-Chair Vehicle (Basic)
+        task_type: 3d_model
+        hours_estimate: 50
+        priority: 1
+    }
+
+    class Chair_4_Vehicle_Comfort:::task{
+        name: 4-Chair Vehicle (Comfort Upgrade)
+        task_type: 3d_model
+        hours_estimate: 50
+        priority: 2
+    }
+
+    class Chair_4_Vehicle_Bubble:::task{
+        name: 4-Chair Vehicle (Bubble Cabin)
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 3
+    }
+
+    class Chair_6:::task{
+        name: Chair Lift 6-Seater
+        task_type: milestone
+        priority: 2
+    }
+
+    class Chair_6_Terminal_Board:::task{
+        name: 6-Chair Boarding Terminal
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 2
+    }
+
+    class Chair_6_Terminal_Alight:::task{
+        name: 6-Chair Alighting Terminal
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 2
+    }
+
+    class Chair_6_Pylon:::task{
+        name: 6-Chair Support Pylon
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 2
+    }
+
+    class Chair_6_Vehicle:::task{
+        name: 6-Chair Vehicle
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 2
+    }
+
+    class Chair_8:::task{
+        name: Chair Lift 8-Seater
+        task_type: milestone
+        priority: 3
+    }
+
+    class Chair_8_Terminal_Board:::task{
+        name: 8-Chair Boarding Terminal
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 3
+    }
+
+    class Chair_8_Terminal_Alight:::task{
+        name: 8-Chair Alighting Terminal
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 3
+    }
+
+    class Chair_8_Pylon:::task{
+        name: 8-Chair Support Pylon
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 3
+    }
+
+    class Chair_8_Vehicle:::task{
+        name: 8-Chair Vehicle
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 3
+    }
+
+    class Cabin:::task{
+        name: Cabin Lift (Gondola)
+        task_type: data_asset
+        priority: 2
+        notes: Capacity 4-40, most expensive, requires large terminal area
+    }
+
+    class Cabin_4:::task{
+        name: Gondola 4-Passenger
+        task_type: milestone
+        priority: 2
+    }
+
+    class Cabin_4_Terminal_Board:::task{
+        name: 4-Gondola Boarding Terminal
+        task_type: 3d_model
+        hours_estimate: 120
+        priority: 2
+    }
+
+    class Cabin_4_Terminal_Alight:::task{
+        name: 4-Gondola Alighting Terminal
+        task_type: 3d_model
+        hours_estimate: 120
+        priority: 2
+    }
+
+    class Cabin_4_Pylon:::task{
+        name: 4-Gondola Support Pylon
+        task_type: 3d_model
+        hours_estimate: 50
+        priority: 2
+    }
+
+    class Cabin_4_Vehicle:::task{
+        name: 4-Gondola Vehicle
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 2
+    }
+
+    class Cabin_8:::task{
+        name: Gondola 8-Passenger
+        task_type: milestone
+        priority: 2
+    }
+
+    class Cabin_8_Terminal_Board:::task{
+        name: 8-Gondola Boarding Terminal
+        task_type: 3d_model
+        hours_estimate: 120
+        priority: 2
+    }
+
+    class Cabin_8_Terminal_Alight:::task{
+        name: 8-Gondola Alighting Terminal
+        task_type: 3d_model
+        hours_estimate: 120
+        priority: 2
+    }
+
+    class Cabin_8_Pylon:::task{
+        name: 8-Gondola Support Pylon
+        task_type: 3d_model
+        hours_estimate: 50
+        priority: 2
+    }
+
+    class Cabin_8_Vehicle:::task{
+        name: 8-Gondola Vehicle
+        task_type: 3d_model
+        hours_estimate: 90
+        priority: 2
+    }
+
+    class Cabin_16:::task{
+        name: Gondola 16-Passenger
+        task_type: milestone
+        priority: 3
+    }
+
+    class Cabin_16_Terminal_Board:::task{
+        name: 16-Gondola Boarding Terminal
+        task_type: 3d_model
+        hours_estimate: 140
+        priority: 3
+    }
+
+    class Cabin_16_Terminal_Alight:::task{
+        name: 16-Gondola Alighting Terminal
+        task_type: 3d_model
+        hours_estimate: 140
+        priority: 3
+    }
+
+    class Cabin_16_Pylon:::task{
+        name: 16-Gondola Support Pylon
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 3
+    }
+
+    class Cabin_16_Vehicle:::task{
+        name: 16-Gondola Vehicle
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 3
+    }
+
+    class Cabin_40:::task{
+        name: Gondola 40-Passenger
+        task_type: milestone
+        priority: 4
+    }
+
+    class Cabin_40_Terminal_Board:::task{
+        name: 40-Gondola Boarding Terminal
+        task_type: 3d_model
+        hours_estimate: 160
+        priority: 4
+    }
+
+    class Cabin_40_Terminal_Alight:::task{
+        name: 40-Gondola Alighting Terminal
+        task_type: 3d_model
+        hours_estimate: 160
+        priority: 4
+    }
+
+    class Cabin_40_Pylon:::task{
+        name: 40-Gondola Support Pylon
+        task_type: 3d_model
+        hours_estimate: 70
+        priority: 4
+    }
+
+    class Cabin_40_Vehicle:::task{
+        name: 40-Gondola Vehicle
+        task_type: 3d_model
+        hours_estimate: 120
+        priority: 4
+    }
+
+    %% --- EXTERNAL LINKS ---
+
+    class ExtLinks:::task{
+        name: External Transport Links
+        task_type: milestone
+        priority: 2
+        notes: Bringing guests into the resort
+    }
+
+    class Road:::task{
+        name: Road Access
+        task_type: data_asset
+        priority: 2
+    }
+
+    class Road_Mesh:::task{
+        name: Road Spline Mesh
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 2
+    }
+
+    class Road_Parking:::task{
+        name: Parking Area
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 2
+    }
+
+    class CoachStation:::task{
+        name: Coach Station
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 2
+    }
+
+    class TrainStation_Ext:::task{
+        name: Train Station (External)
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 3
+    }
+
+    %% --- INTERNAL LINKS ---
+
+    class IntLinks:::task{
+        name: Internal Transport Links
+        task_type: milestone
+        priority: 2
+        notes: Moving guests within resort (non-lift)
+    }
+
+    class ShuttleBus:::task{
+        name: Shuttle Bus System
+        task_type: data_asset
+        priority: 2
+    }
+
+    class ShuttleBus_Stop:::task{
+        name: Shuttle Bus Stop
+        task_type: 3d_model
+        hours_estimate: 50
+        priority: 2
+    }
+
+    class ShuttleBus_Vehicle:::task{
+        name: Shuttle Bus Vehicle
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 2
+    }
+
+    class Taxi:::task{
+        name: Taxi Service
+        task_type: data_asset
+        priority: 3
+    }
+
+    class Taxi_Stand:::task{
+        name: Taxi Stand
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 3
+    }
+
+    class TrainInternal:::task{
+        name: Internal Train
+        task_type: data_asset
+        priority: 3
+        notes: Limited incline tolerance
+    }
+
+    class Train_Station:::task{
+        name: Train Station (Internal)
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 3
+    }
+
+    class Train_Track:::task{
+        name: Train Track Spline
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 3
+    }
+
+    class Train_Vehicle:::task{
+        name: Train Vehicle
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 3
+    }
+
+    class Funicular:::task{
+        name: Funicular Railway
+        task_type: data_asset
+        priority: 3
+        notes: Can function on steep inclines
+    }
+
+    class Funicular_Station_Top:::task{
+        name: Funicular Top Station
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 3
+    }
+
+    class Funicular_Station_Bottom:::task{
+        name: Funicular Bottom Station
+        task_type: 3d_model
+        hours_estimate: 100
+        priority: 3
+    }
+
+    class Funicular_Track:::task{
+        name: Funicular Track Spline
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 3
+    }
+
+    class Funicular_Vehicle:::task{
+        name: Funicular Car
+        task_type: 3d_model
+        hours_estimate: 80
+        priority: 3
+    }
+
+    %% --- PISTES ---
+
+    class Pistes:::task{
+        name: Piste System
+        task_type: milestone
+        priority: 1
+        notes: Recreational attraction centerpiece
+    }
+
+    class Piste_Design:::task{
+        name: Piste Design Specification
+        task_type: design
+        hours_estimate: 24
+        priority: 1
+        notes: Define grading system, quality metrics, maintenance requirements
+    }
+
+    class Piste_Materials:::task{
+        name: Piste Surface Materials
+        task_type: 3d_model
+        hours_estimate: 60
+        priority: 1
+        notes: Snow quality variations, grooming patterns
+    }
+
+    class Piste_Markers:::task{
+        name: Piste Markers and Signage
+        task_type: 3d_model
+        hours_estimate: 40
+        priority: 1
+        notes: Difficulty ratings, direction markers, safety signs
+    }
+
+    class Piste_Integration:::task{
+        name: Piste Economic Integration
+        task_type: economic
+        hours_estimate: 40
+        priority: 1
+        notes: Link piste quality/difficulty to resort attractiveness
+    }
+
+    %% ========================================
+    %% CROSS-CUTTING SYSTEMS (duplicated as needed)
+    %% ========================================
+
+    %% NOTE: TechTree also appears in Accommodation.mmd
+    class TechTree:::task{
+        name: Technology Tree System
+        task_type: gameplay
+        hours_estimate: 60
+        priority: 2
+        notes: Upgrades for materials, capacity, comfort, efficiency
+    }
+}
+
+%% ========================================
+%% COMPOSITION RELATIONSHIPS
+%% ========================================
+
+EAR_Content *-- Transport
+EAR_Content *-- TechTree
+
+Transport *-- Lifts
+Transport *-- ExtLinks
+Transport *-- IntLinks
+Transport *-- Pistes
+
+Lifts *-- Lifts_Design
+Lifts *-- Drag
+Lifts *-- Chair
+Lifts *-- Cabin
+
+Drag *-- Drag_Terminal_Board
+Drag *-- Drag_Terminal_Alight
+Drag *-- Drag_Pylon
+Drag *-- Drag_Vehicle
+
+Chair *-- Chair_2
+Chair *-- Chair_4
+Chair *-- Chair_6
+Chair *-- Chair_8
+
+Chair_2 *-- Chair_2_Terminal_Board_Fixed
+Chair_2 *-- Chair_2_Terminal_Alight_Fixed
+Chair_2 *-- Chair_2_Terminal_Board_Detach
+Chair_2 *-- Chair_2_Terminal_Alight_Detach
+Chair_2 *-- Chair_2_Pylon
+Chair_2 *-- Chair_2_Vehicle_Basic
+Chair_2 *-- Chair_2_Vehicle_Comfort
+Chair_2 *-- Chair_2_Vehicle_Bubble
+
+Chair_4 *-- Chair_4_Terminal_Board_Fixed
+Chair_4 *-- Chair_4_Terminal_Alight_Fixed
+Chair_4 *-- Chair_4_Terminal_Board_Detach
+Chair_4 *-- Chair_4_Terminal_Alight_Detach
+Chair_4 *-- Chair_4_Pylon
+Chair_4 *-- Chair_4_Vehicle_Basic
+Chair_4 *-- Chair_4_Vehicle_Comfort
+Chair_4 *-- Chair_4_Vehicle_Bubble
+
+Chair_6 *-- Chair_6_Terminal_Board
+Chair_6 *-- Chair_6_Terminal_Alight
+Chair_6 *-- Chair_6_Pylon
+Chair_6 *-- Chair_6_Vehicle
+
+Chair_8 *-- Chair_8_Terminal_Board
+Chair_8 *-- Chair_8_Terminal_Alight
+Chair_8 *-- Chair_8_Pylon
+Chair_8 *-- Chair_8_Vehicle
+
+Cabin *-- Cabin_4
+Cabin *-- Cabin_8
+Cabin *-- Cabin_16
+Cabin *-- Cabin_40
+
+Cabin_4 *-- Cabin_4_Terminal_Board
+Cabin_4 *-- Cabin_4_Terminal_Alight
+Cabin_4 *-- Cabin_4_Pylon
+Cabin_4 *-- Cabin_4_Vehicle
+
+Cabin_8 *-- Cabin_8_Terminal_Board
+Cabin_8 *-- Cabin_8_Terminal_Alight
+Cabin_8 *-- Cabin_8_Pylon
+Cabin_8 *-- Cabin_8_Vehicle
+
+Cabin_16 *-- Cabin_16_Terminal_Board
+Cabin_16 *-- Cabin_16_Terminal_Alight
+Cabin_16 *-- Cabin_16_Pylon
+Cabin_16 *-- Cabin_16_Vehicle
+
+Cabin_40 *-- Cabin_40_Terminal_Board
+Cabin_40 *-- Cabin_40_Terminal_Alight
+Cabin_40 *-- Cabin_40_Pylon
+Cabin_40 *-- Cabin_40_Vehicle
+
+ExtLinks *-- Road
+ExtLinks *-- CoachStation
+ExtLinks *-- TrainStation_Ext
+
+Road *-- Road_Mesh
+Road *-- Road_Parking
+
+IntLinks *-- ShuttleBus
+IntLinks *-- Taxi
+IntLinks *-- TrainInternal
+IntLinks *-- Funicular
+
+ShuttleBus *-- ShuttleBus_Stop
+ShuttleBus *-- ShuttleBus_Vehicle
+
+Taxi *-- Taxi_Stand
+
+TrainInternal *-- Train_Station
+TrainInternal *-- Train_Track
+TrainInternal *-- Train_Vehicle
+
+Funicular *-- Funicular_Station_Top
+Funicular *-- Funicular_Station_Bottom
+Funicular *-- Funicular_Track
+Funicular *-- Funicular_Vehicle
+
+Pistes *-- Piste_Design
+Pistes *-- Piste_Materials
+Pistes *-- Piste_Markers
+Pistes *-- Piste_Integration
+
+%% ========================================
+%% DEPENDENCY RELATIONSHIPS
+%% ========================================
+
+Drag ..> Lifts_Design
+Chair ..> Lifts_Design
+Cabin ..> Lifts_Design
+
+Piste_Materials ..> Piste_Design
+Piste_Markers ..> Piste_Design
+Piste_Integration ..> Piste_Design
+
+TechTree ..> Lifts_Design
+
+classDef task fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
