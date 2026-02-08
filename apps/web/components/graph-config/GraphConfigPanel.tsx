@@ -1,7 +1,10 @@
 /**
  * GraphConfigPanel component
  * Right-side drawer for configuring graph layout and display settings:
+ * - Layout direction (TB / LR / BT / RL)
+ * - Node spacing (nodesep / ranksep)
  * - Node sizing mode (fix width / fix height)
+ * - Data-driven sizing (numeric column → node dimension)
  * - Per-table column visibility
  * - Edge inclusion in layout algorithm
  */
@@ -9,10 +12,13 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Drawer, Stack, Switch, Text, Checkbox, Divider, Group } from '@mantine/core';
+import {
+  Drawer, Stack, Switch, Text, Checkbox, Divider,
+  SegmentedControl, Slider, NumberInput, Select,
+} from '@mantine/core';
 import { useAppStore } from '@/stores/useAppStore';
 import { buildGraphFromDatabase } from '@/lib/reactflow-transform';
-import type { GraphRendererConfig } from '@/stores/slices/uiSlice';
+import type { GraphRendererConfig, RankDir, DataDrivenSizingConfig } from '@/stores/slices/uiSlice';
 import styles from './GraphConfigPanel.module.css';
 
 export function GraphConfigPanel() {
@@ -22,20 +28,28 @@ export function GraphConfigPanel() {
   const setGraphConfig = useAppStore((state) => state.setGraphConfig);
   const database = useAppStore((state) => state.database);
 
-  // Extract table → columns mapping and junction table names from the database
-  const { tableColumns, junctionTableNames } = useMemo(() => {
-    if (!database) return { tableColumns: {} as Record<string, string[]>, junctionTableNames: [] as string[] };
+  // Extract table → columns mapping, junction table names, and numeric columns
+  const { tableColumns, junctionTableNames, numericColumns } = useMemo(() => {
+    if (!database) return {
+      tableColumns: {} as Record<string, string[]>,
+      junctionTableNames: [] as string[],
+      numericColumns: [] as string[],
+    };
 
     const graph = buildGraphFromDatabase(database);
 
-    // Group columns by tableName
+    // Group columns by tableName, and detect numeric columns
     const colsByTable: Record<string, Set<string>> = {};
+    const numericCols = new Set<string>();
     for (const node of graph.nodes) {
       const table = node.data.tableName as string;
       if (!colsByTable[table]) colsByTable[table] = new Set();
-      for (const key of Object.keys(node.data)) {
+      for (const [key, value] of Object.entries(node.data)) {
         if (key !== 'label' && key !== 'name' && key !== 'tableName' && !key.startsWith('_') && key !== 'pk') {
           colsByTable[table].add(key);
+          if (typeof value === 'number') {
+            numericCols.add(key);
+          }
         }
       }
     }
@@ -53,11 +67,19 @@ export function GraphConfigPanel() {
       }
     }
 
-    return { tableColumns, junctionTableNames: Array.from(jtNames).sort() };
+    return {
+      tableColumns,
+      junctionTableNames: Array.from(jtNames).sort(),
+      numericColumns: Array.from(numericCols).sort(),
+    };
   }, [database]);
 
   const update = (patch: Partial<GraphRendererConfig>) => {
     setGraphConfig({ ...graphConfig, ...patch });
+  };
+
+  const updateSizing = (patch: Partial<DataDrivenSizingConfig>) => {
+    update({ dataDrivenSizing: { ...graphConfig.dataDrivenSizing, ...patch } });
   };
 
   const toggleColumnVisibility = (tableName: string, column: string) => {
@@ -94,6 +116,57 @@ export function GraphConfigPanel() {
       title="Graph Settings"
     >
       <Stack gap="lg" className={styles.content}>
+        {/* Layout Direction */}
+        <div>
+          <Text fw={600} size="sm" mb="xs">Layout Direction</Text>
+          <SegmentedControl
+            fullWidth
+            value={graphConfig.rankdir}
+            onChange={(val) => update({ rankdir: val as RankDir })}
+            data={[
+              { label: 'Top-Down', value: 'TB' },
+              { label: 'Left-Right', value: 'LR' },
+              { label: 'Bottom-Up', value: 'BT' },
+              { label: 'Right-Left', value: 'RL' },
+            ]}
+          />
+        </div>
+
+        <Divider />
+
+        {/* Node Spacing */}
+        <div>
+          <Text fw={600} size="sm" mb="xs">Node Spacing</Text>
+          <Stack gap="sm">
+            <div>
+              <Text size="xs" c="dimmed" mb={4}>
+                Between nodes (nodesep): {graphConfig.nodesep}px
+              </Text>
+              <Slider
+                min={20}
+                max={400}
+                step={10}
+                value={graphConfig.nodesep}
+                onChangeEnd={(val) => update({ nodesep: val })}
+              />
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" mb={4}>
+                Between ranks (ranksep): {graphConfig.ranksep}px
+              </Text>
+              <Slider
+                min={20}
+                max={400}
+                step={10}
+                value={graphConfig.ranksep}
+                onChangeEnd={(val) => update({ ranksep: val })}
+              />
+            </div>
+          </Stack>
+        </div>
+
+        <Divider />
+
         {/* Sizing Section */}
         <div>
           <Text fw={600} size="sm" mb="xs">Node Sizing</Text>
@@ -108,6 +181,61 @@ export function GraphConfigPanel() {
               checked={graphConfig.fixHeight}
               onChange={(e) => update({ fixHeight: e.currentTarget.checked })}
             />
+          </Stack>
+        </div>
+
+        <Divider />
+
+        {/* Data-Driven Sizing */}
+        <div>
+          <Text fw={600} size="sm" mb="xs">Data-Driven Sizing</Text>
+          <Stack gap="xs">
+            <Switch
+              label="Enable data-driven sizing"
+              checked={graphConfig.dataDrivenSizing.enabled}
+              onChange={(e) => updateSizing({ enabled: e.currentTarget.checked })}
+            />
+            {graphConfig.dataDrivenSizing.enabled && (
+              <Stack gap="sm" mt="xs">
+                <Select
+                  label="Numeric column"
+                  placeholder="Select column"
+                  value={graphConfig.dataDrivenSizing.column || null}
+                  onChange={(val) => updateSizing({ column: val || '' })}
+                  data={numericColumns.map((c) => ({ label: c, value: c }))}
+                  size="xs"
+                />
+                <div>
+                  <Text size="xs" c="dimmed" mb={4}>Scale axis</Text>
+                  <SegmentedControl
+                    fullWidth
+                    size="xs"
+                    value={graphConfig.dataDrivenSizing.axis}
+                    onChange={(val) => updateSizing({ axis: val as 'width' | 'height' })}
+                    data={[
+                      { label: 'Width', value: 'width' },
+                      { label: 'Height', value: 'height' },
+                    ]}
+                  />
+                </div>
+                <NumberInput
+                  label="Scale factor (px per unit)"
+                  value={graphConfig.dataDrivenSizing.scaleFactor}
+                  onChange={(val) => updateSizing({ scaleFactor: typeof val === 'number' ? val : 20 })}
+                  min={1}
+                  max={200}
+                  size="xs"
+                />
+                <NumberInput
+                  label="Minimum size (px)"
+                  value={graphConfig.dataDrivenSizing.minSize}
+                  onChange={(val) => updateSizing({ minSize: typeof val === 'number' ? val : 80 })}
+                  min={20}
+                  max={500}
+                  size="xs"
+                />
+              </Stack>
+            )}
           </Stack>
         </div>
 

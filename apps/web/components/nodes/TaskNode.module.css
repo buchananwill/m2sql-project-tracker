@@ -76,6 +76,16 @@
   overflow: hidden;
 }
 
+/* Data-driven sizing: width is set inline, height auto */
+.dataDrivenWidth {
+  height: auto;
+}
+
+/* Data-driven sizing: height is set inline, width auto */
+.dataDrivenHeight {
+  width: auto;
+}
+
 /* Text overflow handling */
 .truncate {
   white-space: nowrap;

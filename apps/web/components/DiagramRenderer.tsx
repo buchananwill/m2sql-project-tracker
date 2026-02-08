@@ -1,15 +1,21 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import ReactFlow, {
   Controls,
   Background,
   MiniMap,
   BackgroundVariant,
+  ReactFlowProvider,
+  useNodesState,
+  useEdgesState,
+  useReactFlow,
   type Node,
   type Edge,
+  type NodeChange,
 } from 'reactflow';
 import { buildGraphFromDatabase, applyDagreLayout } from '@/lib/reactflow-transform';
+import type { DagreLayoutOptions } from '@/lib/reactflow-transform';
 import { Paper, Text, Loader, ActionIcon, Tooltip, LoadingOverlay } from '@mantine/core';
 import { IconPalette, IconSettings } from '@tabler/icons-react';
 import { useAppStore } from '@/stores/useAppStore';
@@ -18,46 +24,228 @@ import { ColorCodingPanel } from '@/components/color-coding/ColorCodingPanel';
 import { GraphConfigPanel } from '@/components/graph-config/GraphConfigPanel';
 import styles from './DiagramRenderer.module.css';
 
-export function DiagramRenderer() {
-  // Subscribe to database from store
-  const database = useAppStore((state) => state.database);
-  const setColorCodingPanelOpen = useAppStore((state) => state.setColorCodingPanelOpen);
-  const setGraphConfigPanelOpen = useAppStore((state) => state.setGraphConfigPanelOpen);
+type LayoutPhase = 'IDLE' | 'MEASURING' | 'LAYOUTING' | 'RENDERED';
+
+/**
+ * Inner component that uses ReactFlow hooks (must be inside ReactFlowProvider).
+ * Implements a two-phase measure-then-layout pipeline:
+ * 1. MEASURING: Render nodes at (0,0) so the DOM measures their actual sizes
+ * 2. LAYOUTING: Run dagre with measured sizes, then set final positions
+ */
+function DiagramFlow({
+  rawNodes,
+  rawEdges,
+}: {
+  rawNodes: Node[];
+  rawEdges: Edge[];
+}) {
   const graphConfig = useAppStore((state) => state.uiState.graphConfig);
+  const { fitView } = useReactFlow();
 
-  // Define custom node types
-  const nodeTypes = useMemo(() => ({ task: TaskNode }), []);
+  // Controlled ReactFlow state
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
 
-  // Async graph computation: yields to browser before heavy layout work
-  const [graph, setGraph] = useState<{ nodes: Node[]; edges: Edge[] } | null>(null);
-  const [isComputing, setIsComputing] = useState(false);
-  const rafRef = useRef<number>(0);
+  // Layout phase tracking (ref to avoid re-render loops)
+  const layoutPhaseRef = useRef<LayoutPhase>('IDLE');
+  const [isLayouting, setIsLayouting] = useState(false);
 
-  useEffect(() => {
-    if (!database) {
-      setGraph(null);
+  // Measured dimensions
+  const nodeDimensionsRef = useRef<Map<string, { width: number; height: number }>>(new Map());
+  const expectedNodeCountRef = useRef(0);
+  const measureTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Track previous raw data to detect when graph content changes
+  const prevRawNodesRef = useRef<Node[]>([]);
+  const prevLayoutOptionsRef = useRef<string>('');
+
+  // Compute layout options from config
+  const layoutOptions: DagreLayoutOptions = useMemo(() => ({
+    rankdir: graphConfig.rankdir,
+    nodesep: graphConfig.nodesep,
+    ranksep: graphConfig.ranksep,
+  }), [graphConfig.rankdir, graphConfig.nodesep, graphConfig.ranksep]);
+
+  // Filter edges for layout
+  const layoutEdges = useMemo(() =>
+    rawEdges.filter(
+      (e) => !graphConfig.excludedEdgeSources.includes(e.data?.junctionTable)
+    ),
+    [rawEdges, graphConfig.excludedEdgeSources]
+  );
+
+  // Run dagre layout using measured or existing dimensions
+  const runDagreLayout = useCallback(() => {
+    layoutPhaseRef.current = 'LAYOUTING';
+
+    // Apply measured dimensions to nodes
+    const nodesWithDims = rawNodes.map((node) => {
+      const dims = nodeDimensionsRef.current.get(node.id);
+      if (dims) {
+        return { ...node, width: dims.width, height: dims.height };
+      }
+      return node;
+    });
+
+    const { nodes: layoutedNodes } = applyDagreLayout(nodesWithDims, layoutEdges, layoutOptions);
+
+    setNodes(layoutedNodes);
+    setEdges(rawEdges);
+    setIsLayouting(false);
+
+    // Fit view after layout settles
+    requestAnimationFrame(() => {
+      layoutPhaseRef.current = 'RENDERED';
+      fitView({ padding: 0.1 });
+    });
+  }, [rawNodes, rawEdges, layoutEdges, layoutOptions, setNodes, setEdges, fitView]);
+
+  // Intercept node changes to detect measurement events
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    onNodesChange(changes);
+
+    if (layoutPhaseRef.current !== 'MEASURING') return;
+
+    for (const change of changes) {
+      if (change.type === 'dimensions' && 'dimensions' in change && change.dimensions) {
+        nodeDimensionsRef.current.set(change.id, {
+          width: change.dimensions.width,
+          height: change.dimensions.height,
+        });
+      }
+    }
+
+    if (nodeDimensionsRef.current.size >= expectedNodeCountRef.current) {
+      clearTimeout(measureTimeoutRef.current);
+      runDagreLayout();
+    }
+  }, [onNodesChange, runDagreLayout]);
+
+  // Start measurement phase: place nodes at origin so ReactFlow renders and measures them
+  const startMeasurement = useCallback(() => {
+    if (rawNodes.length === 0) {
+      setNodes([]);
+      setEdges(rawEdges);
+      layoutPhaseRef.current = 'RENDERED';
+      setIsLayouting(false);
       return;
     }
 
-    setIsComputing(true);
+    layoutPhaseRef.current = 'MEASURING';
+    setIsLayouting(true);
+    nodeDimensionsRef.current.clear();
+    expectedNodeCountRef.current = rawNodes.length;
 
-    // Yield to the browser so the loading overlay can paint before dagre blocks
-    rafRef.current = requestAnimationFrame(() => {
-      const raw = buildGraphFromDatabase(database);
+    // Place nodes at staggered positions so they're rendered but off-screen won't cause issues
+    const measureNodes = rawNodes.map((node, i) => ({
+      ...node,
+      position: { x: 0, y: i * 200 },
+      // Clear any previous width/height so ReactFlow re-measures
+      width: undefined,
+      height: undefined,
+    }));
 
-      // Filter edges: excluded edge sources are removed from layout but still rendered
-      const layoutEdges = raw.edges.filter(
-        (e) => !graphConfig.excludedEdgeSources.includes(e.data?.junctionTable)
-      );
+    setNodes(measureNodes);
+    setEdges(rawEdges);
 
-      const { nodes } = applyDagreLayout(raw.nodes, layoutEdges);
+    // Timeout fallback: if not all nodes measured in 2s, proceed with what we have
+    clearTimeout(measureTimeoutRef.current);
+    measureTimeoutRef.current = setTimeout(() => {
+      if (layoutPhaseRef.current === 'MEASURING') {
+        runDagreLayout();
+      }
+    }, 2000);
+  }, [rawNodes, rawEdges, setNodes, setEdges, runDagreLayout]);
 
-      setGraph({ nodes, edges: raw.edges });
-      setIsComputing(false);
+  // Effect: detect when raw graph data changes → trigger measurement
+  useEffect(() => {
+    const nodesChanged = rawNodes !== prevRawNodesRef.current;
+    prevRawNodesRef.current = rawNodes;
+
+    if (nodesChanged) {
+      startMeasurement();
+    }
+  }, [rawNodes, startMeasurement]);
+
+  // Effect: detect layout-only config changes → re-layout without re-measuring
+  useEffect(() => {
+    const currentKey = JSON.stringify({
+      rankdir: layoutOptions.rankdir,
+      nodesep: layoutOptions.nodesep,
+      ranksep: layoutOptions.ranksep,
+      excludedEdgeSources: graphConfig.excludedEdgeSources,
     });
 
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [database, graphConfig.excludedEdgeSources]);
+    if (prevLayoutOptionsRef.current && prevLayoutOptionsRef.current !== currentKey) {
+      // Layout-only change: re-run dagre with existing measured dimensions
+      if (nodeDimensionsRef.current.size > 0 && layoutPhaseRef.current === 'RENDERED') {
+        setIsLayouting(true);
+        // Use rAF to let the loading overlay paint
+        requestAnimationFrame(() => {
+          runDagreLayout();
+        });
+      }
+    }
+
+    prevLayoutOptionsRef.current = currentKey;
+  }, [layoutOptions, graphConfig.excludedEdgeSources, runDagreLayout]);
+
+  // Effect: detect sizing config changes → re-measure
+  useEffect(() => {
+    // Only trigger if we've already rendered once (avoid double-trigger on mount)
+    if (layoutPhaseRef.current === 'RENDERED' && rawNodes.length > 0) {
+      startMeasurement();
+    }
+    // We intentionally only react to these specific sizing configs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphConfig.fixWidth, graphConfig.fixHeight, graphConfig.hiddenColumns, graphConfig.dataDrivenSizing]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      clearTimeout(measureTimeoutRef.current);
+    };
+  }, []);
+
+  return (
+    <div className={styles.reactFlowWrapper} style={{ position: 'relative' }}>
+      <LoadingOverlay
+        visible={isLayouting}
+        zIndex={5}
+        overlayProps={{ blur: 1 }}
+      />
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes}
+        fitView
+        attributionPosition="bottom-left"
+        minZoom={0.1}
+        maxZoom={2}
+      >
+        <Controls />
+        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+        <MiniMap nodeStrokeWidth={3} zoomable pannable />
+      </ReactFlow>
+    </div>
+  );
+}
+
+// Memoized node types (must be stable reference outside component)
+const nodeTypes = { task: TaskNode };
+
+export function DiagramRenderer() {
+  const database = useAppStore((state) => state.database);
+  const setColorCodingPanelOpen = useAppStore((state) => state.setColorCodingPanelOpen);
+  const setGraphConfigPanelOpen = useAppStore((state) => state.setGraphConfigPanelOpen);
+
+  // Build raw graph from database (no layout yet)
+  const rawGraph = useMemo(() => {
+    if (!database) return null;
+    return buildGraphFromDatabase(database);
+  }, [database]);
 
   if (!database) {
     return (
@@ -69,7 +257,7 @@ export function DiagramRenderer() {
     );
   }
 
-  if (!graph) {
+  if (!rawGraph) {
     return (
       <Paper p="xl" withBorder className={styles.container}>
         <div className={styles.loadingState}>
@@ -105,26 +293,12 @@ export function DiagramRenderer() {
           </Tooltip>
         </div>
 
-        <div className={styles.reactFlowWrapper} style={{ position: 'relative' }}>
-          <LoadingOverlay
-            visible={isComputing}
-            zIndex={5}
-            overlayProps={{ blur: 1 }}
+        <ReactFlowProvider>
+          <DiagramFlow
+            rawNodes={rawGraph.nodes}
+            rawEdges={rawGraph.edges}
           />
-          <ReactFlow
-            nodes={graph.nodes}
-            edges={graph.edges}
-            nodeTypes={nodeTypes}
-            fitView
-            attributionPosition="bottom-left"
-            minZoom={0.1}
-            maxZoom={2}
-          >
-            <Controls />
-            <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-            <MiniMap nodeStrokeWidth={3} zoomable pannable />
-          </ReactFlow>
-        </div>
+        </ReactFlowProvider>
       </Paper>
 
       <ColorCodingPanel />

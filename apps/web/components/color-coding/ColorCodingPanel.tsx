@@ -25,7 +25,7 @@ export function ColorCodingPanel() {
   const database = useAppStore((state) => state.database);
 
   const [localConfig, setLocalConfig] = useState<ColorCodingConfig>(storeConfig);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Sync from store when panel opens
   useEffect(() => {

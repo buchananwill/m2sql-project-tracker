@@ -2,11 +2,25 @@ import type { StateCreator } from 'zustand';
 import type { AppStore } from '../useAppStore';
 import type { ColorCodingConfig } from '@/lib/types/color-filters';
 
+export type RankDir = 'TB' | 'LR' | 'BT' | 'RL';
+
+export interface DataDrivenSizingConfig {
+  enabled: boolean;
+  column: string;
+  axis: 'width' | 'height';
+  scaleFactor: number;
+  minSize: number;
+}
+
 export interface GraphRendererConfig {
   fixWidth: boolean;
   fixHeight: boolean;
   hiddenColumns: Record<string, string[]>; // tableName → hidden column names
   excludedEdgeSources: string[];           // junction table names to exclude from layout
+  rankdir: RankDir;
+  nodesep: number;
+  ranksep: number;
+  dataDrivenSizing: DataDrivenSizingConfig;
 }
 
 export interface UIState {
@@ -43,6 +57,16 @@ const initialUIState: UIState = {
     fixHeight: false,
     hiddenColumns: {},
     excludedEdgeSources: [],
+    rankdir: 'TB',
+    nodesep: 100,
+    ranksep: 100,
+    dataDrivenSizing: {
+      enabled: false,
+      column: '',
+      axis: 'width',
+      scaleFactor: 20,
+      minSize: 80,
+    },
   },
   graphConfigPanelOpen: false,
 };

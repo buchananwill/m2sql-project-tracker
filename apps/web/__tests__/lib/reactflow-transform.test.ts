@@ -358,5 +358,60 @@ describe('reactflow-transform', () => {
 
       expect(parentNode!.position.y).toBeLessThan(childNode!.position.y);
     });
+
+    it('should support LR rankdir (left-to-right)', () => {
+      const nodes: Node[] = [
+        { id: 'parent', data: { label: 'Parent' }, type: 'default', position: { x: 0, y: 0 } },
+        { id: 'child', data: { label: 'Child' }, type: 'default', position: { x: 0, y: 0 } },
+      ];
+      const edges: Edge[] = [
+        { id: 'edge-1', source: 'parent', target: 'child' },
+      ];
+
+      const result = applyDagreLayout(nodes, edges, { rankdir: 'LR', nodesep: 100, ranksep: 100 });
+      const parentNode = result.nodes.find(n => n.id === 'parent')!;
+      const childNode = result.nodes.find(n => n.id === 'child')!;
+
+      // In LR layout, parent should be to the left of child
+      expect(parentNode.position.x).toBeLessThan(childNode.position.x);
+    });
+
+    it('should respect custom nodesep and ranksep', () => {
+      const nodes: Node[] = [
+        { id: 'a', data: { label: 'A' }, type: 'default', position: { x: 0, y: 0 } },
+        { id: 'b', data: { label: 'B' }, type: 'default', position: { x: 0, y: 0 } },
+      ];
+      const edges: Edge[] = [
+        { id: 'e1', source: 'a', target: 'b' },
+      ];
+
+      const narrow = applyDagreLayout(nodes, edges, { rankdir: 'TB', nodesep: 20, ranksep: 20 });
+      const wide = applyDagreLayout(nodes, edges, { rankdir: 'TB', nodesep: 400, ranksep: 400 });
+
+      const narrowGap = Math.abs(
+        narrow.nodes.find(n => n.id === 'b')!.position.y - narrow.nodes.find(n => n.id === 'a')!.position.y
+      );
+      const wideGap = Math.abs(
+        wide.nodes.find(n => n.id === 'b')!.position.y - wide.nodes.find(n => n.id === 'a')!.position.y
+      );
+
+      expect(wideGap).toBeGreaterThan(narrowGap);
+    });
+
+    it('should use node.width and node.height when set', () => {
+      const nodes: Node[] = [
+        { id: 'big', data: { label: 'Big' }, type: 'default', position: { x: 0, y: 0 }, width: 400, height: 200 },
+        { id: 'small', data: { label: 'Small' }, type: 'default', position: { x: 0, y: 0 }, width: 100, height: 50 },
+      ];
+      const edges: Edge[] = [
+        { id: 'e1', source: 'big', target: 'small' },
+      ];
+
+      // Should not throw and should produce valid positions
+      const result = applyDagreLayout(nodes, edges);
+      expect(result.nodes).toHaveLength(2);
+      expect(typeof result.nodes[0].position.x).toBe('number');
+      expect(typeof result.nodes[1].position.x).toBe('number');
+    });
   });
 });

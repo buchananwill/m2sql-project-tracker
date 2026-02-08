@@ -6,11 +6,21 @@
 
 'use client';
 
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
 import { useAppStore } from '@/stores/useAppStore';
 import { evaluateFilters } from '@/lib/color-filter-engine';
+import type { RankDir } from '@/stores/slices/uiSlice';
 import styles from './TaskNode.module.css';
+
+function getHandlePositions(rankdir: RankDir): { target: Position; source: Position } {
+  switch (rankdir) {
+    case 'TB': return { target: Position.Top, source: Position.Bottom };
+    case 'BT': return { target: Position.Bottom, source: Position.Top };
+    case 'LR': return { target: Position.Left, source: Position.Right };
+    case 'RL': return { target: Position.Right, source: Position.Left };
+  }
+}
 
 export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
   // Get config from store
@@ -44,15 +54,34 @@ export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
 
   const truncateClass = graphConfig.fixWidth ? ` ${styles.truncate}` : '';
 
+  // Dynamic handle positions based on layout direction
+  const handlePositions = getHandlePositions(graphConfig.rankdir);
+
+  // Data-driven sizing
+  const { dataDrivenSizing } = graphConfig;
+  const dataDrivenStyle = useMemo(() => {
+    if (!dataDrivenSizing.enabled || !dataDrivenSizing.column) return undefined;
+    const rawValue = data[dataDrivenSizing.column];
+    if (typeof rawValue !== 'number' || isNaN(rawValue)) return undefined;
+    const computedSize = Math.max(dataDrivenSizing.minSize, rawValue * dataDrivenSizing.scaleFactor);
+    return { [dataDrivenSizing.axis]: `${computedSize}px` };
+  }, [dataDrivenSizing, data]);
+
+  // When data-driven sizing is active, use a class that doesn't constrain the driven axis
+  const effectiveSizingClass = dataDrivenStyle
+    ? (dataDrivenSizing.axis === 'width' ? styles.dataDrivenWidth : styles.dataDrivenHeight)
+    : sizingClass;
+
   return (
     <>
-      <Handle type="target" position={Position.Top} />
+      <Handle type="target" position={handlePositions.target} />
       <div
-        className={`${styles.node} ${sizingClass}`}
+        className={`${styles.node} ${effectiveSizingClass}`}
         style={{
           backgroundColor,
           borderColor,
           color: textColor,
+          ...dataDrivenStyle,
         }}
       >
         <div className={`${styles.nodeHeader}${truncateClass}`} style={{ color: textColor }}>
@@ -67,7 +96,7 @@ export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
           ))}
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} />
+      <Handle type="source" position={handlePositions.source} />
     </>
   );
 });

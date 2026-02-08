@@ -7,10 +7,17 @@ import type { Database, Table } from '@m2sql/model';
 import { isJunctionTableByRows } from '@m2sql/model';
 import type { Node, Edge } from 'reactflow';
 import dagre from 'dagre';
+import type { RankDir } from '@/stores/slices/uiSlice';
 
 export interface ReactFlowGraph {
   nodes: Node[];
   edges: Edge[];
+}
+
+export interface DagreLayoutOptions {
+  rankdir: RankDir;
+  nodesep: number;
+  ranksep: number;
 }
 
 /**
@@ -93,25 +100,34 @@ export function transformDatabaseToReactFlow(database: Database): ReactFlowGraph
   return applyDagreLayout(nodes, edges);
 }
 
+const defaultLayoutOptions: DagreLayoutOptions = {
+  rankdir: 'TB',
+  nodesep: 100,
+  ranksep: 100,
+};
+
 /**
  * Apply dagre automatic layout algorithm to position nodes.
- * Creates a hierarchical top-to-bottom layout.
+ * Creates a hierarchical layout with configurable direction and spacing.
  */
 export function applyDagreLayout(
   nodes: Node[],
-  edges: Edge[]
+  edges: Edge[],
+  options: DagreLayoutOptions = defaultLayoutOptions
 ): ReactFlowGraph {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
   dagreGraph.setGraph({
-    rankdir: 'TB', // Top-to-bottom
-    nodesep: 100,
-    ranksep: 100,
+    rankdir: options.rankdir,
+    nodesep: options.nodesep,
+    ranksep: options.ranksep,
   });
 
   // Add nodes to dagre graph
   nodes.forEach(node => {
-    dagreGraph.setNode(node.id, { width: node.width ?? 200, height: node.height ?? 100 });
+    const nodeWidth = node.width ?? 200;
+    const nodeHeight = node.height ?? 100;
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
   });
 
   // Add edges to dagre graph
@@ -122,14 +138,14 @@ export function applyDagreLayout(
   // Run layout algorithm
   dagre.layout(dagreGraph);
 
-  // Update node positions from dagre
+  // Update node positions from dagre (convert center → top-left)
   const layoutedNodes = nodes.map(node => {
-    const position = dagreGraph.node(node.id);
+    const dagreNode = dagreGraph.node(node.id);
     return {
       ...node,
       position: {
-        x: position.x - 100, // Center the node
-        y: position.y - 50,
+        x: dagreNode.x - dagreNode.width / 2,
+        y: dagreNode.y - dagreNode.height / 2,
       },
     };
   });
