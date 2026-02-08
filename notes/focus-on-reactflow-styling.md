@@ -61,4 +61,10 @@ thus be the focus of the next development sprint.
   
 # Follow Up Comments 2
 
-- Gradient is using poor color-interpolation algorithm. Suggestion: use `culori` to build an `oklab` interpolation space. 
+- Gradient is using poor color-interpolation algorithm. Suggestion: use `culori` to build an `oklab` interpolation space.
+- All rendering updates should be async, as well as debounced.
+  - Will require callback to push new layout
+  - Will require loading overlay for renderer viewport when update is in flight
+  - Example improvements:
+    - allows edit hysteresis on text filters
+    - prevents layout recalculation blocking main thread
