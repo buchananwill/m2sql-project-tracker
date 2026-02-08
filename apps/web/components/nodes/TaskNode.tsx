@@ -60,11 +60,12 @@ export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
   // Data-driven sizing
   const { dataDrivenSizing } = graphConfig;
   const dataDrivenStyle = useMemo(() => {
+      const axisName = dataDrivenSizing.axis;
     if (!dataDrivenSizing.enabled || !dataDrivenSizing.column) return undefined;
     const rawValue = data[dataDrivenSizing.column];
     if (typeof rawValue !== 'number' || isNaN(rawValue)) return undefined;
     const computedSize = Math.max(dataDrivenSizing.minSize, rawValue * dataDrivenSizing.scaleFactor);
-    return { [dataDrivenSizing.axis]: `${computedSize}px` };
+    return { [axisName]: `${computedSize}px` };
   }, [dataDrivenSizing, data]);
 
   // When data-driven sizing is active, use a class that doesn't constrain the driven axis

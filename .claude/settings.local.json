@@ -18,7 +18,8 @@
       "Bash(ls:*)",
       "Bash(grep:*)",
       "Bash(pnpm --filter web exec tsc:*)",
-      "Bash(pnpm --filter web test:*)"
+      "Bash(pnpm --filter web test:*)",
+      "Bash(pnpm --filter model exec tsc:*)"
     ]
   }
 }

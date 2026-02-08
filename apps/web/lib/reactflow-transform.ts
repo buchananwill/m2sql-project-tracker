@@ -3,7 +3,7 @@
  * Converts tables and rows into nodes and edges for visualization.
  */
 
-import type { Database, Table } from '@m2sql/model';
+import type { Database } from '@m2sql/model';
 import { isJunctionTableByRows } from '@m2sql/model';
 import type { Node, Edge } from 'reactflow';
 import dagre from 'dagre';

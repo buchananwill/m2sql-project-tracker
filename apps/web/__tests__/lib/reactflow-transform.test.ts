@@ -1,40 +1,68 @@
 import { describe, it, expect } from 'vitest';
-import type { Database } from '@m2sql/model';
+import type { Database, Row, ColumnDefinition, TableSchema } from '@m2sql/model';
 import { transformDatabaseToReactFlow, applyDagreLayout } from '@/lib/reactflow-transform';
 import type { Node, Edge } from 'reactflow';
+
+/** Helper: build a minimal ColumnDefinition with sensible defaults */
+function col(overrides: Partial<ColumnDefinition> & { name: string; type: ColumnDefinition['type'] }): ColumnDefinition {
+  return {
+    nullable: false,
+    primaryKey: false,
+    unique: false,
+    defaultValue: null,
+    ...overrides,
+  };
+}
+
+/** Helper: build a minimal TableSchema */
+function schema(columns: ColumnDefinition[]): TableSchema {
+  return {
+    name: '',
+    columns,
+    primaryKey: columns.filter(c => c.primaryKey).map(c => c.name),
+    uniqueConstraints: [],
+    checkConstraints: [],
+  };
+}
+
+/** Helper: build a minimal Row */
+function row(overrides: Partial<Row> & { name: string; anchor: string }): Row {
+  return {
+    columns: {},
+    relationships: {},
+    ...overrides,
+  };
+}
+
+/** Helper: build a minimal Database */
+function db(tables: Database['tables'], arrowMappings?: Database['arrowMappings']): Database {
+  return {
+    name: 'Test Database',
+    anchor: 'test-database',
+    tables,
+    arrowMappings,
+  };
+}
 
 describe('reactflow-transform', () => {
   describe('transformDatabaseToReactFlow', () => {
     it('should create nodes from data table rows', () => {
-      const database: Database = {
-        tables: [
-          {
-            name: 'tasks',
-            schema: {
-              columns: [
-                { name: 'id', type: 'INTEGER', nullable: false, primaryKey: true },
-                { name: 'name', type: 'TEXT', nullable: false },
-                { name: 'anchor', type: 'TEXT', nullable: false },
-                { name: 'status', type: 'TEXT', nullable: true },
-              ],
-            },
-            rows: [
-              {
-                pk: 1,
-                name: 'Task 1',
-                anchor: 'task-1',
-                columns: { status: 'open' },
-              },
-              {
-                pk: 2,
-                name: 'Task 2',
-                anchor: 'task-2',
-                columns: { status: 'closed' },
-              },
-            ],
-          },
-        ],
-      };
+      const database = db([
+        {
+          name: 'tasks',
+          schema: schema([
+            col({ name: 'id', type: 'INTEGER', primaryKey: true }),
+            col({ name: 'name', type: 'TEXT' }),
+            col({ name: 'anchor', type: 'TEXT' }),
+            col({ name: 'status', type: 'TEXT', nullable: true }),
+          ]),
+          rawSql: '',
+          rows: [
+            row({ pk: 1, name: 'Task 1', anchor: 'task-1', columns: { status: 'open' } }),
+            row({ pk: 2, name: 'Task 2', anchor: 'task-2', columns: { status: 'closed' } }),
+          ],
+        },
+      ]);
 
       const result = transformDatabaseToReactFlow(database);
 
@@ -46,7 +74,7 @@ describe('reactflow-transform', () => {
           tableName: 'tasks',
           status: 'open',
         },
-        type: 'default',
+        type: 'task',
       });
       expect(result.nodes[1]).toMatchObject({
         id: 'task-2',
@@ -55,35 +83,29 @@ describe('reactflow-transform', () => {
           tableName: 'tasks',
           status: 'closed',
         },
-        type: 'default',
+        type: 'task',
       });
     });
 
     it('should filter out internal columns starting with underscore', () => {
-      const database: Database = {
-        tables: [
-          {
-            name: 'tasks',
-            schema: {
-              columns: [
-                { name: 'name', type: 'TEXT', nullable: false },
-                { name: 'anchor', type: 'TEXT', nullable: false },
-              ],
-            },
-            rows: [
-              {
-                pk: 1,
-                name: 'Task 1',
-                anchor: 'task-1',
-                columns: {
-                  status: 'open',
-                  _internal: 'hidden',
-                },
-              },
-            ],
-          },
-        ],
-      };
+      const database = db([
+        {
+          name: 'tasks',
+          schema: schema([
+            col({ name: 'name', type: 'TEXT' }),
+            col({ name: 'anchor', type: 'TEXT' }),
+          ]),
+          rawSql: '',
+          rows: [
+            row({
+              pk: 1,
+              name: 'Task 1',
+              anchor: 'task-1',
+              columns: { status: 'open', _internal: 'hidden' },
+            }),
+          ],
+        },
+      ]);
 
       const result = transformDatabaseToReactFlow(database);
 
@@ -92,44 +114,40 @@ describe('reactflow-transform', () => {
     });
 
     it('should create edges from junction table rows', () => {
-      const database: Database = {
-        tables: [
-          {
-            name: 'tasks',
-            schema: {
-              columns: [
-                { name: 'name', type: 'TEXT', nullable: false },
-                { name: 'anchor', type: 'TEXT', nullable: false },
-              ],
-            },
-            rows: [
-              { pk: 1, name: 'Task 1', anchor: 'task-1', columns: {} },
-              { pk: 2, name: 'Task 2', anchor: 'task-2', columns: {} },
-            ],
-          },
-          {
-            name: 'tasks_dependencies',
-            schema: {
-              columns: [
-                { name: '_lhs_anchor', type: 'TEXT', nullable: false },
-                { name: '_rhs_anchor', type: 'TEXT', nullable: false },
-              ],
-            },
-            rows: [
-              {
-                pk: 1,
-                name: '',
-                anchor: '',
-                columns: {
-                  _lhs_anchor: 'task-1',
-                  _rhs_anchor: 'task-2',
-                  label: 'depends on',
-                },
+      const database = db([
+        {
+          name: 'tasks',
+          schema: schema([
+            col({ name: 'name', type: 'TEXT' }),
+            col({ name: 'anchor', type: 'TEXT' }),
+          ]),
+          rawSql: '',
+          rows: [
+            row({ pk: 1, name: 'Task 1', anchor: 'task-1' }),
+            row({ pk: 2, name: 'Task 2', anchor: 'task-2' }),
+          ],
+        },
+        {
+          name: 'tasks_dependencies',
+          schema: schema([
+            col({ name: '_lhs_anchor', type: 'TEXT' }),
+            col({ name: '_rhs_anchor', type: 'TEXT' }),
+          ]),
+          rawSql: '',
+          rows: [
+            row({
+              pk: 1,
+              name: '',
+              anchor: '',
+              columns: {
+                _lhs_anchor: 'task-1',
+                _rhs_anchor: 'task-2',
+                label: 'depends on',
               },
-            ],
-          },
-        ],
-      };
+            }),
+          ],
+        },
+      ]);
 
       const result = transformDatabaseToReactFlow(database);
 
@@ -144,31 +162,29 @@ describe('reactflow-transform', () => {
     });
 
     it('should handle arrow mappings for edge styling', () => {
-      const database: Database = {
-        tables: [
+      const database = db(
+        [
           {
             name: 'tasks',
-            schema: {
-              columns: [
-                { name: 'name', type: 'TEXT', nullable: false },
-                { name: 'anchor', type: 'TEXT', nullable: false },
-              ],
-            },
+            schema: schema([
+              col({ name: 'name', type: 'TEXT' }),
+              col({ name: 'anchor', type: 'TEXT' }),
+            ]),
+            rawSql: '',
             rows: [
-              { pk: 1, name: 'Task 1', anchor: 'task-1', columns: {} },
-              { pk: 2, name: 'Task 2', anchor: 'task-2', columns: {} },
+              row({ pk: 1, name: 'Task 1', anchor: 'task-1' }),
+              row({ pk: 2, name: 'Task 2', anchor: 'task-2' }),
             ],
           },
           {
             name: 'tasks_dependencies',
-            schema: {
-              columns: [
-                { name: '_lhs_anchor', type: 'TEXT', nullable: false },
-                { name: '_rhs_anchor', type: 'TEXT', nullable: false },
-              ],
-            },
+            schema: schema([
+              col({ name: '_lhs_anchor', type: 'TEXT' }),
+              col({ name: '_rhs_anchor', type: 'TEXT' }),
+            ]),
+            rawSql: '',
             rows: [
-              {
+              row({
                 pk: 1,
                 name: '',
                 anchor: '',
@@ -176,19 +192,19 @@ describe('reactflow-transform', () => {
                   _lhs_anchor: 'task-1',
                   _rhs_anchor: 'task-2',
                 },
-              },
+              }),
             ],
           },
         ],
-        arrowMappings: [
+        [
           {
             junctionTable: 'tasks_dependencies',
             arrowToken: '..>',
-            lhsTable: 'tasks',
-            rhsTable: 'tasks',
+            leftColumn: 'dependent_task_id',
+            rightColumn: 'prerequisite_task_id',
           },
         ],
-      };
+      );
 
       const result = transformDatabaseToReactFlow(database);
 
@@ -200,42 +216,38 @@ describe('reactflow-transform', () => {
     });
 
     it('should skip junction rows with missing anchors', () => {
-      const database: Database = {
-        tables: [
-          {
-            name: 'tasks',
-            schema: {
-              columns: [
-                { name: 'name', type: 'TEXT', nullable: false },
-                { name: 'anchor', type: 'TEXT', nullable: false },
-              ],
-            },
-            rows: [
-              { pk: 1, name: 'Task 1', anchor: 'task-1', columns: {} },
-            ],
-          },
-          {
-            name: 'tasks_dependencies',
-            schema: {
-              columns: [
-                { name: '_lhs_anchor', type: 'TEXT', nullable: false },
-                { name: '_rhs_anchor', type: 'TEXT', nullable: false },
-              ],
-            },
-            rows: [
-              {
-                pk: 1,
-                name: '',
-                anchor: '',
-                columns: {
-                  _lhs_anchor: 'task-1',
-                  // Missing _rhs_anchor
-                },
+      const database = db([
+        {
+          name: 'tasks',
+          schema: schema([
+            col({ name: 'name', type: 'TEXT' }),
+            col({ name: 'anchor', type: 'TEXT' }),
+          ]),
+          rawSql: '',
+          rows: [
+            row({ pk: 1, name: 'Task 1', anchor: 'task-1' }),
+          ],
+        },
+        {
+          name: 'tasks_dependencies',
+          schema: schema([
+            col({ name: '_lhs_anchor', type: 'TEXT' }),
+            col({ name: '_rhs_anchor', type: 'TEXT' }),
+          ]),
+          rawSql: '',
+          rows: [
+            row({
+              pk: 1,
+              name: '',
+              anchor: '',
+              columns: {
+                _lhs_anchor: 'task-1',
+                // Missing _rhs_anchor
               },
-            ],
-          },
-        ],
-      };
+            }),
+          ],
+        },
+      ]);
 
       const result = transformDatabaseToReactFlow(database);
 
@@ -243,9 +255,7 @@ describe('reactflow-transform', () => {
     });
 
     it('should return empty graph for empty database', () => {
-      const database: Database = {
-        tables: [],
-      };
+      const database = db([]);
 
       const result = transformDatabaseToReactFlow(database);
 
