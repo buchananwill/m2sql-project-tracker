@@ -24,7 +24,7 @@ thus be the focus of the next development sprint.
 5. Nodes are currently the stock Reactflow look-and-feel - it would be good to stamp a more "branded" style on them. 
 
 
-# Follow Up Comments - As of 8/2/26
+# Follow Up Comments 1 - As of 8/2/26
 
 - Filters should be able to match multiple fields
   - E.g. filter text, look in multiple columns for that text
@@ -59,3 +59,6 @@ thus be the focus of the next development sprint.
     1. Set up fully-featured filter table that natively captures the color-coding filter model
     2. Serialize the filter state to a BLOB and store it with a timestamp. Try to pull filter BLOB by deserializing back to state model, but soft fail if any error. 
   
+# Follow Up Comments 2
+
+- Gradient is using poor color-interpolation algorithm. Suggestion: use `culori` to build an `oklab` interpolation space. 
