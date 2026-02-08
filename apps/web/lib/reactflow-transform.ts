@@ -111,7 +111,7 @@ export function applyDagreLayout(
 
   // Add nodes to dagre graph
   nodes.forEach(node => {
-    dagreGraph.setNode(node.id, { width: 200, height: 100 });
+    dagreGraph.setNode(node.id, { width: node.width ?? 200, height: node.height ?? 100 });
   });
 
   // Add edges to dagre graph
