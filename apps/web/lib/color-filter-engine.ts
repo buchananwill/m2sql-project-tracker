@@ -5,7 +5,18 @@
  * Supports text matching, numeric gradients, and numeric bands.
  */
 
+import { interpolate, formatHex } from 'culori';
 import type { ColorFilter, NumericGradientRule, NumericBandsRule } from './types/color-filters';
+
+/** Cached interpolator closure: maps a raw numeric value to a hex color */
+type PreparedInterpolator = (value: number) => string | null;
+
+/**
+ * WeakMap cache for gradient interpolators, keyed on the filter object reference.
+ * Since Zustand/immer creates new references on config changes, stale entries
+ * are naturally garbage-collected.
+ */
+const interpolatorCache = new WeakMap<NumericGradientRule, PreparedInterpolator>();
 
 /**
  * Evaluates a list of filters in priority order
@@ -111,8 +122,38 @@ function evaluateTextMatch(
 }
 
 /**
- * Interpolates color from a gradient based on numeric value
- * Uses linear interpolation in RGB color space
+ * Builds a PreparedInterpolator for a gradient rule.
+ * Uses culori's oklab color space for perceptually uniform interpolation.
+ */
+function buildInterpolator(gradient: NumericGradientRule): PreparedInterpolator {
+  const sortedStops = [...gradient.stops].sort((a, b) => a.value - b.value);
+
+  if (sortedStops.length === 0) return () => null;
+
+  const minVal = sortedStops[0].value;
+  const maxVal = sortedStops[sortedStops.length - 1].value;
+
+  // Build culori color array with explicit positions [color, position] where position is 0..1
+  const range = maxVal - minVal;
+  const colorPositions = sortedStops.flatMap((stop) => {
+    const t = range === 0 ? 0 : (stop.value - minVal) / range;
+    return [stop.color, t] as [string, number];
+  });
+
+  const interp = interpolate(colorPositions, 'oklab');
+
+  return (value: number) => {
+    if (value < minVal || value > maxVal) return null;
+    const t = range === 0 ? 0 : (value - minVal) / range;
+    return formatHex(interp(t));
+  };
+}
+
+/**
+ * Interpolates color from a gradient based on numeric value.
+ * Uses oklab perceptual color space via culori for visually uniform gradients.
+ * Interpolators are cached per gradient object reference.
+ *
  * @param value - The numeric value to map
  * @param gradient - The gradient rule with stops
  * @returns Hex color string if value is within gradient range, null otherwise
@@ -123,42 +164,13 @@ function interpolateGradient(
 ): string | null {
   if (isNaN(value)) return null;
 
-  // Sort stops by value ascending
-  const sortedStops = [...gradient.stops].sort((a, b) => a.value - b.value);
-
-  // Check if value is out of range
-  if (sortedStops.length === 0) return null;
-  if (value < sortedStops[0].value) return null;
-  if (value > sortedStops[sortedStops.length - 1].value) return null;
-
-  // Find exact match
-  const exactMatch = sortedStops.find(stop => stop.value === value);
-  if (exactMatch) return exactMatch.color;
-
-  // Find two adjacent stops that bracket the value
-  for (let i = 0; i < sortedStops.length - 1; i++) {
-    const stop1 = sortedStops[i];
-    const stop2 = sortedStops[i + 1];
-
-    if (value >= stop1.value && value <= stop2.value) {
-      // Calculate interpolation factor
-      const t = (value - stop1.value) / (stop2.value - stop1.value);
-
-      // Interpolate color in RGB space
-      const rgb1 = hexToRgb(stop1.color);
-      const rgb2 = hexToRgb(stop2.color);
-
-      if (!rgb1 || !rgb2) return null;
-
-      const r = Math.round(rgb1.r + t * (rgb2.r - rgb1.r));
-      const g = Math.round(rgb1.g + t * (rgb2.g - rgb1.g));
-      const b = Math.round(rgb1.b + t * (rgb2.b - rgb1.b));
-
-      return rgbToHex(r, g, b);
-    }
+  let interp = interpolatorCache.get(gradient);
+  if (!interp) {
+    interp = buildInterpolator(gradient);
+    interpolatorCache.set(gradient, interp);
   }
 
-  return null;
+  return interp(value);
 }
 
 /**
@@ -180,44 +192,6 @@ function findBand(
   }
 
   return null;
-}
-
-/**
- * Converts hex color string to RGB object
- * @param hex - Hex color string (e.g., "#ff0000" or "ff0000")
- * @returns RGB object or null if invalid
- */
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  // Remove # if present
-  const cleanHex = hex.replace(/^#/, '');
-
-  // Validate hex format
-  if (!/^[0-9A-Fa-f]{6}$/.test(cleanHex)) {
-    return null;
-  }
-
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-
-  return { r, g, b };
-}
-
-/**
- * Converts RGB values to hex color string
- * @param r - Red value (0-255)
- * @param g - Green value (0-255)
- * @param b - Blue value (0-255)
- * @returns Hex color string (e.g., "#ff0000")
- */
-function rgbToHex(r: number, g: number, b: number): string {
-  const toHex = (n: number) => {
-    const clamped = Math.max(0, Math.min(255, Math.round(n)));
-    const hex = clamped.toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
-  };
-
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 /**

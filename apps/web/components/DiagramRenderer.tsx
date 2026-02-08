@@ -1,14 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import ReactFlow, {
   Controls,
   Background,
   MiniMap,
   BackgroundVariant,
+  type Node,
+  type Edge,
 } from 'reactflow';
 import { buildGraphFromDatabase, applyDagreLayout } from '@/lib/reactflow-transform';
-import { Paper, Text, Loader, ActionIcon, Tooltip } from '@mantine/core';
+import { Paper, Text, Loader, ActionIcon, Tooltip, LoadingOverlay } from '@mantine/core';
 import { IconPalette, IconSettings } from '@tabler/icons-react';
 import { useAppStore } from '@/stores/useAppStore';
 import { TaskNode } from '@/components/nodes';
@@ -26,21 +28,35 @@ export function DiagramRenderer() {
   // Define custom node types
   const nodeTypes = useMemo(() => ({ task: TaskNode }), []);
 
-  // Build graph: transform → filter edges for layout → apply dagre
-  const graph = useMemo(() => {
-    if (!database) return null;
+  // Async graph computation: yields to browser before heavy layout work
+  const [graph, setGraph] = useState<{ nodes: Node[]; edges: Edge[] } | null>(null);
+  const [isComputing, setIsComputing] = useState(false);
+  const rafRef = useRef<number>(0);
 
-    const raw = buildGraphFromDatabase(database);
+  useEffect(() => {
+    if (!database) {
+      setGraph(null);
+      return;
+    }
 
-    // Filter edges: excluded edge sources are removed from layout but still rendered
-    const layoutEdges = raw.edges.filter(
-      (e) => !graphConfig.excludedEdgeSources.includes(e.data?.junctionTable)
-    );
+    setIsComputing(true);
 
-    const { nodes } = applyDagreLayout(raw.nodes, layoutEdges);
+    // Yield to the browser so the loading overlay can paint before dagre blocks
+    rafRef.current = requestAnimationFrame(() => {
+      const raw = buildGraphFromDatabase(database);
 
-    // Return positioned nodes with ALL edges (including excluded ones)
-    return { nodes, edges: raw.edges };
+      // Filter edges: excluded edge sources are removed from layout but still rendered
+      const layoutEdges = raw.edges.filter(
+        (e) => !graphConfig.excludedEdgeSources.includes(e.data?.junctionTable)
+      );
+
+      const { nodes } = applyDagreLayout(raw.nodes, layoutEdges);
+
+      setGraph({ nodes, edges: raw.edges });
+      setIsComputing(false);
+    });
+
+    return () => cancelAnimationFrame(rafRef.current);
   }, [database, graphConfig.excludedEdgeSources]);
 
   if (!database) {
@@ -89,7 +105,12 @@ export function DiagramRenderer() {
           </Tooltip>
         </div>
 
-        <div className={styles.reactFlowWrapper}>
+        <div className={styles.reactFlowWrapper} style={{ position: 'relative' }}>
+          <LoadingOverlay
+            visible={isComputing}
+            zIndex={5}
+            overlayProps={{ blur: 1 }}
+          />
           <ReactFlow
             nodes={graph.nodes}
             edges={graph.edges}
