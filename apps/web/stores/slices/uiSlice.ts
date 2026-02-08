@@ -2,10 +2,19 @@ import type { StateCreator } from 'zustand';
 import type { AppStore } from '../useAppStore';
 import type { ColorCodingConfig } from '@/lib/types/color-filters';
 
+export interface GraphRendererConfig {
+  fixWidth: boolean;
+  fixHeight: boolean;
+  hiddenColumns: Record<string, string[]>; // tableName → hidden column names
+  excludedEdgeSources: string[];           // junction table names to exclude from layout
+}
+
 export interface UIState {
   sidebarCollapsed: boolean;
   colorCodingConfig: ColorCodingConfig;
   colorCodingPanelOpen: boolean;
+  graphConfig: GraphRendererConfig;
+  graphConfigPanelOpen: boolean;
 }
 
 export interface UISlice {
@@ -17,6 +26,8 @@ export interface UISlice {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setColorCodingConfig: (config: ColorCodingConfig) => void;
   setColorCodingPanelOpen: (open: boolean) => void;
+  setGraphConfig: (config: GraphRendererConfig) => void;
+  setGraphConfigPanelOpen: (open: boolean) => void;
 }
 
 const initialUIState: UIState = {
@@ -27,6 +38,13 @@ const initialUIState: UIState = {
     text: [],
   },
   colorCodingPanelOpen: false,
+  graphConfig: {
+    fixWidth: false,
+    fixHeight: false,
+    hiddenColumns: {},
+    excludedEdgeSources: [],
+  },
+  graphConfigPanelOpen: false,
 };
 
 export const createUISlice: StateCreator<
@@ -79,6 +97,28 @@ export const createUISlice: StateCreator<
       },
       false,
       'ui/setColorCodingPanelOpen'
+    );
+  },
+
+  // Set graph renderer configuration
+  setGraphConfig: (config) => {
+    set(
+      (state) => {
+        state.uiState.graphConfig = config;
+      },
+      false,
+      'ui/setGraphConfig'
+    );
+  },
+
+  // Set graph config panel open state
+  setGraphConfigPanelOpen: (open) => {
+    set(
+      (state) => {
+        state.uiState.graphConfigPanelOpen = open;
+      },
+      false,
+      'ui/setGraphConfigPanelOpen'
     );
   },
 });

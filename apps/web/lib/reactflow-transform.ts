@@ -14,10 +14,10 @@ export interface ReactFlowGraph {
 }
 
 /**
- * Transform Database model to ReactFlow nodes and edges.
- * Data tables become nodes, junction tables become edges.
+ * Build the raw graph (nodes + edges) without layout.
+ * Useful when you need the data before applying layout with custom edge filtering.
  */
-export function transformDatabaseToReactFlow(database: Database): ReactFlowGraph {
+export function buildGraphFromDatabase(database: Database): ReactFlowGraph {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
 
@@ -76,11 +76,20 @@ export function transformDatabaseToReactFlow(database: Database): ReactFlowGraph
         label: label || arrowToken,
         type,
         animated: arrowToken.includes('..'), // Animate dependency arrows
+        data: { junctionTable: junctionTable.name },
       });
     }
   }
 
-  // Step 4: Apply automatic layout
+  return { nodes, edges };
+}
+
+/**
+ * Transform Database model to ReactFlow nodes and edges with layout applied.
+ * Data tables become nodes, junction tables become edges.
+ */
+export function transformDatabaseToReactFlow(database: Database): ReactFlowGraph {
+  const { nodes, edges } = buildGraphFromDatabase(database);
   return applyDagreLayout(nodes, edges);
 }
 

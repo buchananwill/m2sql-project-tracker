@@ -7,27 +7,41 @@ import ReactFlow, {
   MiniMap,
   BackgroundVariant,
 } from 'reactflow';
-import { transformDatabaseToReactFlow } from '@/lib/reactflow-transform';
+import { buildGraphFromDatabase, applyDagreLayout } from '@/lib/reactflow-transform';
 import { Paper, Text, Loader, ActionIcon, Tooltip } from '@mantine/core';
-import { IconPalette } from '@tabler/icons-react';
+import { IconPalette, IconSettings } from '@tabler/icons-react';
 import { useAppStore } from '@/stores/useAppStore';
 import { TaskNode } from '@/components/nodes';
 import { ColorCodingPanel } from '@/components/color-coding/ColorCodingPanel';
+import { GraphConfigPanel } from '@/components/graph-config/GraphConfigPanel';
 import styles from './DiagramRenderer.module.css';
 
 export function DiagramRenderer() {
   // Subscribe to database from store
   const database = useAppStore((state) => state.database);
   const setColorCodingPanelOpen = useAppStore((state) => state.setColorCodingPanelOpen);
+  const setGraphConfigPanelOpen = useAppStore((state) => state.setGraphConfigPanelOpen);
+  const graphConfig = useAppStore((state) => state.uiState.graphConfig);
 
   // Define custom node types
   const nodeTypes = useMemo(() => ({ task: TaskNode }), []);
 
-  // Memoize the transformation to avoid recalculating on every render
+  // Build graph: transform → filter edges for layout → apply dagre
   const graph = useMemo(() => {
     if (!database) return null;
-    return transformDatabaseToReactFlow(database);
-  }, [database]);
+
+    const raw = buildGraphFromDatabase(database);
+
+    // Filter edges: excluded edge sources are removed from layout but still rendered
+    const layoutEdges = raw.edges.filter(
+      (e) => !graphConfig.excludedEdgeSources.includes(e.data?.junctionTable)
+    );
+
+    const { nodes } = applyDagreLayout(raw.nodes, layoutEdges);
+
+    // Return positioned nodes with ALL edges (including excluded ones)
+    return { nodes, edges: raw.edges };
+  }, [database, graphConfig.excludedEdgeSources]);
 
   if (!database) {
     return (
@@ -52,17 +66,28 @@ export function DiagramRenderer() {
   return (
     <>
       <Paper shadow="sm" className={styles.container} withBorder>
-        <Tooltip label="Color Coding" position="left">
-          <ActionIcon
-            className={styles.toggleButton}
-            size="lg"
-            variant="filled"
-            color="blue"
-            onClick={() => setColorCodingPanelOpen(true)}
-          >
-            <IconPalette size={20} />
-          </ActionIcon>
-        </Tooltip>
+        <div className={styles.toolButtons}>
+          <Tooltip label="Graph Settings" position="left">
+            <ActionIcon
+              size="lg"
+              variant="filled"
+              color="gray"
+              onClick={() => setGraphConfigPanelOpen(true)}
+            >
+              <IconSettings size={20} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Color Coding" position="left">
+            <ActionIcon
+              size="lg"
+              variant="filled"
+              color="blue"
+              onClick={() => setColorCodingPanelOpen(true)}
+            >
+              <IconPalette size={20} />
+            </ActionIcon>
+          </Tooltip>
+        </div>
 
         <div className={styles.reactFlowWrapper}>
           <ReactFlow
@@ -82,6 +107,7 @@ export function DiagramRenderer() {
       </Paper>
 
       <ColorCodingPanel />
+      <GraphConfigPanel />
     </>
   );
 }

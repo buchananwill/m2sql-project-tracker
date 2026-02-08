@@ -24,9 +24,12 @@
   justify-content: center;
 }
 
-.toggleButton {
+.toolButtons {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }

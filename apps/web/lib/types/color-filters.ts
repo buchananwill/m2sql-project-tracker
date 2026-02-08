@@ -9,15 +9,17 @@
 
 /**
  * Text match filter - flexible string matching
- * Supports exact match, contains, and regex
+ * Supports exact match, contains, and regex.
+ * Can target multiple columns; matches if any column matches.
  */
 export type TextMatchRule = {
   type: 'text_match';
-  column: string;
+  columns: string[];       // Columns to search (ignored when allColumns is true)
+  allColumns?: boolean;    // When true, search every column on the node
   matchType: 'exact' | 'contains' | 'regex';  // Match type
-  pattern: string;       // Text or regex pattern to match
-  ignoreCase?: boolean;  // Ignore case (default: false)
-  color: string;         // Hex color (e.g., "#90ee90")
+  pattern: string;         // Text or regex pattern to match
+  ignoreCase?: boolean;    // Ignore case (default: false)
+  color: string;           // Hex color (e.g., "#90ee90")
 };
 
 /**

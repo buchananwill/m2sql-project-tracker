@@ -1,37 +1,61 @@
 /**
  * ColorCodingPanel component
- * Right-side drawer for configuring color coding filters
+ * Right-side drawer for configuring color coding filters.
+ * Edits are kept in local state for responsive UI, then debounced
+ * before flushing to the Zustand store (which triggers node re-renders).
  */
 
 'use client';
 
-import { useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Drawer, Tabs, Stack, Button, Text } from '@mantine/core';
 import { useAppStore } from '@/stores/useAppStore';
 import { transformDatabaseToReactFlow } from '@/lib/reactflow-transform';
 import { FilterBuilder } from './FilterBuilder';
-import type { ColorFilter } from '@/lib/types/color-filters';
+import type { ColorFilter, ColorCodingConfig } from '@/lib/types/color-filters';
 import styles from './ColorCodingPanel.module.css';
+
+const DEBOUNCE_MS = 250;
 
 export function ColorCodingPanel() {
   const opened = useAppStore((state) => state.uiState.colorCodingPanelOpen);
   const setOpened = useAppStore((state) => state.setColorCodingPanelOpen);
-  const colorCodingConfig = useAppStore((state) => state.uiState.colorCodingConfig);
-  const setColorCodingConfig = useAppStore((state) => state.setColorCodingConfig);
+  const storeConfig = useAppStore((state) => state.uiState.colorCodingConfig);
+  const setStoreConfig = useAppStore((state) => state.setColorCodingConfig);
   const database = useAppStore((state) => state.database);
+
+  const [localConfig, setLocalConfig] = useState<ColorCodingConfig>(storeConfig);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Sync from store when panel opens
+  useEffect(() => {
+    if (opened) setLocalConfig(storeConfig);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(debounceRef.current);
+  }, []);
+
+  // Update local state immediately, debounce the store write
+  const updateConfig = useCallback((config: ColorCodingConfig) => {
+    setLocalConfig(config);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setStoreConfig(config);
+    }, DEBOUNCE_MS);
+  }, [setStoreConfig]);
 
   // Extract available column names from transformed graph nodes
   const availableColumns = useMemo(() => {
     if (!database) return [];
 
-    // Transform database to graph to get actual node data structure
     const graph = transformDatabaseToReactFlow(database);
     const columns = new Set<string>();
 
-    // Extract all keys from node data
     graph.nodes.forEach(node => {
       Object.keys(node.data).forEach(key => {
-        // Exclude label (it's a display-only field)
         if (key !== 'label') {
           columns.add(key);
         }
@@ -42,32 +66,26 @@ export function ColorCodingPanel() {
   }, [database]);
 
   const handleBackgroundChange = (filters: ColorFilter[]) => {
-    setColorCodingConfig({
-      ...colorCodingConfig,
-      background: filters,
-    });
+    updateConfig({ ...localConfig, background: filters });
   };
 
   const handleBorderChange = (filters: ColorFilter[]) => {
-    setColorCodingConfig({
-      ...colorCodingConfig,
-      border: filters,
-    });
+    updateConfig({ ...localConfig, border: filters });
   };
 
   const handleTextChange = (filters: ColorFilter[]) => {
-    setColorCodingConfig({
-      ...colorCodingConfig,
-      text: filters,
-    });
+    updateConfig({ ...localConfig, text: filters });
   };
 
   const handleReset = () => {
-    setColorCodingConfig({
+    const emptyConfig: ColorCodingConfig = {
       background: [],
       border: [],
       text: [],
-    });
+    };
+    setLocalConfig(emptyConfig);
+    clearTimeout(debounceRef.current);
+    setStoreConfig(emptyConfig); // flush immediately on reset
   };
 
   return (
@@ -94,7 +112,7 @@ export function ColorCodingPanel() {
 
           <Tabs.Panel value="background" pt="md">
             <FilterBuilder
-              filters={colorCodingConfig.background}
+              filters={localConfig.background}
               onChange={handleBackgroundChange}
               availableColumns={availableColumns}
             />
@@ -102,7 +120,7 @@ export function ColorCodingPanel() {
 
           <Tabs.Panel value="border" pt="md">
             <FilterBuilder
-              filters={colorCodingConfig.border}
+              filters={localConfig.border}
               onChange={handleBorderChange}
               availableColumns={availableColumns}
             />
@@ -110,7 +128,7 @@ export function ColorCodingPanel() {
 
           <Tabs.Panel value="text" pt="md">
             <FilterBuilder
-              filters={colorCodingConfig.text}
+              filters={localConfig.text}
               onChange={handleTextChange}
               availableColumns={availableColumns}
             />

@@ -1,12 +1,12 @@
 /**
  * Text Match Filter Editor
- * Allows configuring flexible text matching filters
- * Supports exact match, contains, and regex
+ * Allows configuring flexible text matching filters.
+ * Supports exact match, contains, and regex across multiple columns.
  */
 
 'use client';
 
-import { TextInput, Stack, Select, Checkbox } from '@mantine/core';
+import { TextInput, Stack, Select, Checkbox, MultiSelect } from '@mantine/core';
 import { ColorPicker } from './ColorPicker';
 import type { TextMatchRule } from '@/lib/types/color-filters';
 import styles from './TextMatchFilterEditor.module.css';
@@ -50,20 +50,25 @@ export function TextMatchFilterEditor({
 
   return (
     <Stack gap="sm" className={styles.container}>
-      <TextInput
-        label="Column Name"
-        placeholder="e.g., status, task_type, name"
-        value={filter.column}
+      <Checkbox
+        label="Search all columns"
+        checked={filter.allColumns ?? false}
         onChange={(e) =>
-          onChange({ ...filter, column: e.currentTarget.value })
+          onChange({ ...filter, allColumns: e.currentTarget.checked })
         }
-        list="text-columns"
       />
-      <datalist id="text-columns">
-        {availableColumns.map((col) => (
-          <option key={col} value={col} />
-        ))}
-      </datalist>
+
+      {!filter.allColumns && (
+        <MultiSelect
+          label="Columns"
+          placeholder="Select columns to search"
+          data={availableColumns}
+          value={filter.columns}
+          onChange={(columns) => onChange({ ...filter, columns })}
+          searchable
+          clearable
+        />
+      )}
 
       <Select
         label="Match Type"

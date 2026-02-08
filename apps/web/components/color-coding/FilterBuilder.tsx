@@ -73,7 +73,12 @@ function SortableFilterItem({
           regex: 'regex',
         }[filter.matchType];
         const caseLabel = filter.ignoreCase ? ' (ignore case)' : '';
-        return `Text: ${filter.column || '(column)'} ${matchTypeLabel} "${filter.pattern || '(pattern)'}"${caseLabel}`;
+        const colLabel = filter.allColumns
+          ? 'all columns'
+          : filter.columns.length > 0
+            ? filter.columns.join(', ')
+            : '(no columns)';
+        return `Text: ${colLabel} ${matchTypeLabel} "${filter.pattern || '(pattern)'}"${caseLabel}`;
       }
       case 'numeric_gradient':
         return `Gradient: ${filter.column || '(column)'} (${filter.stops.length} stops)`;
@@ -159,7 +164,8 @@ export function FilterBuilder({ filters, onChange, availableColumns }: FilterBui
       case 'text_match':
         newFilter = {
           type: 'text_match',
-          column: '',
+          columns: [],
+          allColumns: true,
           matchType: 'contains',
           pattern: '',
           ignoreCase: true,

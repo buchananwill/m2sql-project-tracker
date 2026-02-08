@@ -34,18 +34,33 @@ function evaluateFilter(
   nodeData: Record<string, any>,
   filter: ColorFilter
 ): string | null {
-  const value = nodeData[filter.column];
-  if (value === undefined || value === null) return null;
-
   switch (filter.type) {
-    case 'text_match':
-      return evaluateTextMatch(String(value), filter);
+    case 'text_match': {
+      // Determine which columns to search
+      const cols = filter.allColumns
+        ? Object.keys(nodeData)
+        : filter.columns;
 
-    case 'numeric_gradient':
+      for (const col of cols) {
+        const value = nodeData[col];
+        if (value === undefined || value === null) continue;
+        const result = evaluateTextMatch(String(value), filter);
+        if (result) return result;
+      }
+      return null;
+    }
+
+    case 'numeric_gradient': {
+      const value = nodeData[filter.column];
+      if (value === undefined || value === null) return null;
       return interpolateGradient(Number(value), filter);
+    }
 
-    case 'numeric_bands':
+    case 'numeric_bands': {
+      const value = nodeData[filter.column];
+      if (value === undefined || value === null) return null;
       return findBand(Number(value), filter);
+    }
 
     default:
       return null;
