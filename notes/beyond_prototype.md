@@ -46,3 +46,10 @@ This demonstrates the overall concept effectively, but is short of a truly usefu
       3. Split point of pane can be adjusted to show more of left or right (this should be a separate control from collapsing, which restores wherever the split point is set)
    4. Mantine has tools to achieve all these UI elements
    5. Validation Errors above Editor window?
+
+
+## Outstanding Items
+
+**(4)** Make the React Flow renderer editable
+**(5)** Node spacing and layout direction still not flexible
+**(6)** Advanced layout configuration
