@@ -64,6 +64,7 @@ function DiagramFlow({
     rankdir: graphConfig.rankdir,
     nodesep: graphConfig.nodesep,
     ranksep: graphConfig.ranksep,
+    ranker: "longest-path"
   }), [graphConfig.rankdir, graphConfig.nodesep, graphConfig.ranksep]);
 
   // Filter edges for layout

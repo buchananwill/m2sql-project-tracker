@@ -14,11 +14,12 @@ export interface ReactFlowGraph {
   edges: Edge[];
 }
 
-export interface DagreLayoutOptions {
-  rankdir: RankDir;
-  nodesep: number;
-  ranksep: number;
-}
+export type DagreLayoutOptions = dagre.GraphLabel;
+// interface DagreLayoutOptions {
+//   rankdir: RankDir;
+//   nodesep: number;
+//   ranksep: number;
+// }
 
 /**
  * Build the raw graph (nodes + edges) without layout.
@@ -104,6 +105,7 @@ const defaultLayoutOptions: DagreLayoutOptions = {
   rankdir: 'TB',
   nodesep: 100,
   ranksep: 100,
+  ranker: 'tight-tree'
 };
 
 /**
@@ -117,11 +119,7 @@ export function applyDagreLayout(
 ): ReactFlowGraph {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
-  dagreGraph.setGraph({
-    rankdir: options.rankdir,
-    nodesep: options.nodesep,
-    ranksep: options.ranksep,
-  });
+  dagreGraph.setGraph(options);
 
   // Add nodes to dagre graph
   nodes.forEach(node => {
