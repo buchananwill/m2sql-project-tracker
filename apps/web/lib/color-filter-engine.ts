@@ -135,7 +135,7 @@ function buildInterpolator(gradient: NumericGradientRule): PreparedInterpolator 
 
   // Build culori color array with explicit positions [color, position] where position is 0..1
   const range = maxVal - minVal;
-  const colorPositions = sortedStops.flatMap((stop) => {
+  const colorPositions = sortedStops.map((stop) => {
     const t = range === 0 ? 0 : (stop.value - minVal) / range;
     return [stop.color, t] as [string, number];
   });
