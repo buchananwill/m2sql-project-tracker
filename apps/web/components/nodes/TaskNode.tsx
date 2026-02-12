@@ -10,6 +10,7 @@ import { memo, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
 import { useAppStore } from '@/stores/useAppStore';
 import { evaluateFilters } from '@/lib/color-filter-engine';
+import { computeNodeInlineStyle } from '@/lib/data-driven-sizing';
 import type { RankDir } from '@/stores/slices/uiSlice';
 import styles from './TaskNode.module.css';
 
@@ -57,16 +58,15 @@ export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
   // Dynamic handle positions based on layout direction
   const handlePositions = getHandlePositions(graphConfig.rankdir);
 
-  // Data-driven sizing
+  // Data-driven sizing (with cross-axis fix support)
   const { dataDrivenSizing } = graphConfig;
   const dataDrivenStyle = useMemo(() => {
-      const axisName = dataDrivenSizing.axis;
-    if (!dataDrivenSizing.enabled || !dataDrivenSizing.column) return undefined;
-    const rawValue = data[dataDrivenSizing.column];
-    if (typeof rawValue !== 'number' || isNaN(rawValue)) return undefined;
-    const computedSize = Math.max(dataDrivenSizing.minSize, rawValue * dataDrivenSizing.scaleFactor);
-    return { [axisName]: `${computedSize}px` };
-  }, [dataDrivenSizing, data]);
+    return computeNodeInlineStyle(data, {
+      dataDrivenSizing,
+      fixWidth: graphConfig.fixWidth,
+      fixHeight: graphConfig.fixHeight,
+    });
+  }, [dataDrivenSizing, graphConfig.fixWidth, graphConfig.fixHeight, data]);
 
   // When data-driven sizing is active, use a class that doesn't constrain the driven axis
   const effectiveSizingClass = dataDrivenStyle

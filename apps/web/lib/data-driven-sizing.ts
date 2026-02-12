@@ -49,9 +49,59 @@ export function computeDataDrivenSize(
  * When data-driven sizing is inactive, the node renders at the CSS base
  * minimum dimensions (content may make it larger, but this gives the floor).
  */
+/**
+ * Fixed dimensions from CSS sizing classes.
+ * Must stay in sync with TaskNode.module.css .fixedWidth / .fixedHeight.
+ */
+export const FIXED_WIDTH = 200;
+export const FIXED_HEIGHT = 100;
+
+/**
+ * Compute the inline style that TaskNode should apply for sizing.
+ *
+ * Returns undefined when data-driven sizing is inactive.
+ * When active, the returned style always contains the data-driven axis.
+ * If fixWidth / fixHeight is set on the non-driven axis, that fixed
+ * dimension is also included so the inline style overrides the
+ * CSS class's `auto` value.
+ */
+export function computeNodeInlineStyle(
+  nodeData: Record<string, unknown>,
+  config: {
+    dataDrivenSizing: DataDrivenSizingConfig;
+    fixWidth: boolean;
+    fixHeight: boolean;
+  },
+): Record<string, string> | undefined {
+  const { dataDrivenSizing, fixWidth, fixHeight } = config;
+  if (!dataDrivenSizing.enabled || !dataDrivenSizing.column) return undefined;
+
+  const rawValue = nodeData[dataDrivenSizing.column];
+  if (typeof rawValue !== 'number' || isNaN(rawValue)) return undefined;
+
+  const computedSize = Math.max(dataDrivenSizing.minSize, rawValue * dataDrivenSizing.scaleFactor);
+  const style: Record<string, string> = {
+    [dataDrivenSizing.axis]: `${computedSize}px`,
+  };
+
+  // When the non-driven axis is fixed, include it in the inline style
+  // so it overrides the CSS class's `auto` value.
+  if (dataDrivenSizing.axis === 'width' && fixHeight) {
+    style.height = `${FIXED_HEIGHT}px`;
+  } else if (dataDrivenSizing.axis === 'height' && fixWidth) {
+    style.width = `${FIXED_WIDTH}px`;
+  }
+
+  return style;
+}
+
 export function computeEffectiveNodeDimensions(
   nodeData: Record<string, unknown>,
-  config: { dataDrivenSizing: DataDrivenSizingConfig },
+  config: {
+    dataDrivenSizing: DataDrivenSizingConfig;
+    fixWidth?: boolean;
+    fixHeight?: boolean;
+  },
 ): { width: number; height: number } {
   let width = NODE_CSS_MIN_WIDTH;
   let height = NODE_CSS_MIN_HEIGHT;

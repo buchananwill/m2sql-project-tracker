@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeDataDrivenSize,
+  computeNodeInlineStyle,
   computeEffectiveNodeDimensions,
   NODE_CSS_MIN_WIDTH,
   NODE_CSS_MIN_HEIGHT,
+  FIXED_WIDTH,
+  FIXED_HEIGHT,
 } from '@/lib/data-driven-sizing';
 import type { DataDrivenSizingConfig } from '@/stores/slices/uiSlice';
 
@@ -56,6 +59,60 @@ describe('computeDataDrivenSize', () => {
   });
 });
 
+describe('computeNodeInlineStyle', () => {
+  it('should return undefined when data-driven sizing is disabled', () => {
+    const style = computeNodeInlineStyle({ duration: 24 }, {
+      dataDrivenSizing: sizingConfig({ enabled: false }),
+      fixWidth: false,
+      fixHeight: false,
+    });
+    expect(style).toBeUndefined();
+  });
+
+  it('should return data-driven width when sizing is on width axis', () => {
+    const style = computeNodeInlineStyle({ duration: 24 }, {
+      dataDrivenSizing: sizingConfig({ axis: 'width', scaleFactor: 10, minSize: 80 }),
+      fixWidth: false,
+      fixHeight: false,
+    });
+    // 24 * 10 = 240
+    expect(style).toEqual({ width: '240px' });
+  });
+
+  /**
+   * BUG: When data-driven sizing is on width, the .dataDrivenWidth CSS class
+   * sets height: auto, overriding the fixedHeight constraint.
+   * The inline style must include height: 100px to override the CSS auto.
+   */
+  it('should include fixed height when data-driven sizing is on width and fixHeight is true', () => {
+    const style = computeNodeInlineStyle({ duration: 24 }, {
+      dataDrivenSizing: sizingConfig({ axis: 'width', scaleFactor: 10, minSize: 80 }),
+      fixWidth: false,
+      fixHeight: true,
+    });
+    expect(style).toEqual({ width: '240px', height: `${FIXED_HEIGHT}px` });
+  });
+
+  it('should include fixed width when data-driven sizing is on height and fixWidth is true', () => {
+    const style = computeNodeInlineStyle({ duration: 24 }, {
+      dataDrivenSizing: sizingConfig({ axis: 'height', scaleFactor: 10, minSize: 80 }),
+      fixWidth: true,
+      fixHeight: false,
+    });
+    expect(style).toEqual({ height: '240px', width: `${FIXED_WIDTH}px` });
+  });
+
+  it('should not include fixed dimension on the same axis as data-driven sizing', () => {
+    // fixWidth should NOT override data-driven width
+    const style = computeNodeInlineStyle({ duration: 24 }, {
+      dataDrivenSizing: sizingConfig({ axis: 'width', scaleFactor: 10, minSize: 80 }),
+      fixWidth: true,
+      fixHeight: false,
+    });
+    expect(style).toEqual({ width: '240px' });
+  });
+});
+
 describe('computeEffectiveNodeDimensions', () => {
   /**
    * THIS TEST SHOULD FAIL with the current CSS.
@@ -102,5 +159,31 @@ describe('computeEffectiveNodeDimensions', () => {
     const dims = computeEffectiveNodeDimensions({ duration: 30 }, config);
     // 30 * 1 = 30, max(50, 30) = 50. User expects 50px, but CSS gives 200px.
     expect(dims.width).toBe(50);
+  });
+
+  it('should fix height when data-driven sizing is on width and fixHeight is true', () => {
+    const config = {
+      dataDrivenSizing: sizingConfig({ axis: 'width', scaleFactor: 10, minSize: 80 }),
+      fixHeight: true,
+    };
+
+    const dims = computeEffectiveNodeDimensions({ duration: 24 }, config);
+    // Width from data: max(80, 240) = 240
+    expect(dims.width).toBe(240);
+    // Height fixed at CSS constant (100px) — not auto
+    expect(dims.height).toBe(NODE_CSS_MIN_HEIGHT);
+  });
+
+  it('should fix width when data-driven sizing is on height and fixWidth is true', () => {
+    const config = {
+      dataDrivenSizing: sizingConfig({ axis: 'height', scaleFactor: 10, minSize: 80 }),
+      fixWidth: true,
+    };
+
+    const dims = computeEffectiveNodeDimensions({ duration: 24 }, config);
+    // Height from data: max(80, 240) = 240
+    expect(dims.height).toBe(240);
+    // Width fixed at CSS constant (200px) — not auto
+    expect(dims.width).toBe(NODE_CSS_MIN_WIDTH);
   });
 });
