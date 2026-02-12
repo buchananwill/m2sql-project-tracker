@@ -118,3 +118,31 @@ export function computeEffectiveNodeDimensions(
 
   return { width, height };
 }
+
+/**
+ * Enrich ReactFlow nodes with pre-computed data-driven dimensions.
+ *
+ * This ensures dagre receives correct sizes even when DOM measurement
+ * hasn't occurred yet (e.g. first layout, or when a rAF race condition
+ * clears the measurement cache).
+ *
+ * Nodes that don't have a numeric value for the sizing column are left
+ * unchanged (dagre will use its default 200×100 fallback).
+ */
+export function precomputeNodeDimensions<T extends { data: Record<string, unknown>; width?: number | null; height?: number | null }>(
+  nodes: T[],
+  config: {
+    dataDrivenSizing: DataDrivenSizingConfig;
+    fixWidth?: boolean;
+    fixHeight?: boolean;
+  },
+): T[] {
+  if (!config.dataDrivenSizing.enabled || !config.dataDrivenSizing.column) {
+    return nodes;
+  }
+
+  return nodes.map(node => {
+    const dims = computeEffectiveNodeDimensions(node.data, config);
+    return { ...node, width: dims.width, height: dims.height };
+  });
+}

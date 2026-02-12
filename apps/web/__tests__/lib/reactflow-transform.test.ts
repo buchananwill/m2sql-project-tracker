@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { Database, Row, ColumnDefinition, TableSchema } from '@m2sql/model';
-import { transformDatabaseToReactFlow, applyDagreLayout } from '@/lib/reactflow-transform';
+import { buildGraphFromDatabase, transformDatabaseToReactFlow, applyDagreLayout } from '@/lib/reactflow-transform';
+import { computeEffectiveNodeDimensions, precomputeNodeDimensions } from '@/lib/data-driven-sizing';
+import type { DataDrivenSizingConfig } from '@/stores/slices/uiSlice';
 import type { Node, Edge } from 'reactflow';
 
 /** Helper: build a minimal ColumnDefinition with sensible defaults */
@@ -422,6 +424,147 @@ describe('reactflow-transform', () => {
       expect(result.nodes).toHaveLength(2);
       expect(typeof result.nodes[0].position.x).toBe('number');
       expect(typeof result.nodes[1].position.x).toBe('number');
+    });
+  });
+
+  /**
+   * Pipeline integration: data-driven sizing → layout.
+   *
+   * The correct pipeline is:
+   *   1. initialize_raw_graph  (buildGraphFromDatabase)
+   *   2. compute_node_sizes    (computeEffectiveNodeDimensions)
+   *   3. layout_with_sizes     (applyDagreLayout with pre-computed dimensions)
+   *
+   * BUG: When step 2 is skipped (dagre receives raw nodes without
+   * width/height), all nodes default to 200×100 regardless of their
+   * data-driven size. Dagre spaces them for 200px widths, but actual
+   * rendered widths can be much larger → nodes overlap visually.
+   */
+  describe('data-driven sizing + layout pipeline', () => {
+    // Shared test data: 3 sibling nodes with very different durations
+    const taskDatabase = db([
+      {
+        name: 'tasks',
+        schema: schema([
+          col({ name: 'id', type: 'INTEGER', primaryKey: true }),
+          col({ name: 'name', type: 'TEXT' }),
+          col({ name: 'anchor', type: 'TEXT' }),
+          col({ name: 'duration', type: 'INTEGER', nullable: true }),
+        ]),
+        rawSql: '',
+        rows: [
+          row({ pk: 1, name: 'Long Task', anchor: 'task-long', columns: { duration: 100 } }),
+          row({ pk: 2, name: 'Medium Task', anchor: 'task-med', columns: { duration: 60 } }),
+          row({ pk: 3, name: 'Short Task', anchor: 'task-short', columns: { duration: 20 } }),
+        ],
+      },
+    ]);
+
+    const ddSizingConfig: DataDrivenSizingConfig = {
+      enabled: true,
+      column: 'duration',
+      axis: 'width',
+      scaleFactor: 5,
+      minSize: 80,
+    };
+
+    /** Check whether two axis-aligned rectangles overlap. */
+    function rectsOverlap(
+      ax: number, ay: number, aw: number, ah: number,
+      bx: number, by: number, bw: number, bh: number,
+    ): boolean {
+      return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+    }
+
+    it('should not produce overlapping nodes when data-driven sizes are applied before layout', () => {
+      // Step 1: build raw graph (no dimensions)
+      const { nodes: rawNodes, edges } = buildGraphFromDatabase(taskDatabase);
+
+      // Step 2: compute actual data-driven dimensions
+      const actualDims = rawNodes.map(n =>
+        computeEffectiveNodeDimensions(n.data, {
+          dataDrivenSizing: ddSizingConfig,
+          fixHeight: true,
+        })
+      );
+      // Sanity: widths should be 500, 300, 100
+      expect(actualDims.map(d => d.width)).toEqual([500, 300, 100]);
+
+      // Step 2b: apply computed dimensions to nodes BEFORE layout
+      const sizedNodes = rawNodes.map((n, i) => ({
+        ...n,
+        width: actualDims[i].width,
+        height: actualDims[i].height,
+      }));
+
+      // Step 3: layout with correct dimensions
+      const { nodes: laidOut } = applyDagreLayout(sizedNodes, edges, {
+        rankdir: 'TB',
+        nodesep: 20,
+        ranksep: 100,
+      });
+
+      // Assert: no pair of nodes overlaps at their actual rendered sizes
+      for (let i = 0; i < laidOut.length; i++) {
+        for (let j = i + 1; j < laidOut.length; j++) {
+          const a = laidOut[i];
+          const b = laidOut[j];
+          const overlap = rectsOverlap(
+            a.position.x, a.position.y, actualDims[i].width, actualDims[i].height,
+            b.position.x, b.position.y, actualDims[j].width, actualDims[j].height,
+          );
+          expect(overlap, `nodes ${a.id} and ${b.id} overlap`).toBe(false);
+        }
+      }
+    });
+
+    /**
+     * Regression test for the overlap bug.
+     *
+     * Without precomputeNodeDimensions, dagre receives raw nodes (no
+     * width/height), defaults to 200×100, and spaces them for 200px —
+     * but actual data-driven widths are 500, 300, 100, causing overlap.
+     *
+     * The fix: use precomputeNodeDimensions before layout so dagre knows
+     * the actual sizes.
+     */
+    it('should not produce overlapping nodes when precomputeNodeDimensions is used', () => {
+      // Step 1: build raw graph (no dimensions — width/height undefined)
+      const { nodes: rawNodes, edges } = buildGraphFromDatabase(taskDatabase);
+
+      // Step 2: pre-compute data-driven dimensions (the FIX)
+      const sizedNodes = precomputeNodeDimensions(rawNodes, {
+        dataDrivenSizing: ddSizingConfig,
+        fixHeight: true,
+      });
+
+      // Step 3: layout with pre-computed dimensions
+      const { nodes: laidOut } = applyDagreLayout(sizedNodes, edges, {
+        rankdir: 'TB',
+        nodesep: 20,
+        ranksep: 100,
+      });
+
+      // Compute actual rendered sizes for overlap check
+      const actualDims = rawNodes.map(n =>
+        computeEffectiveNodeDimensions(n.data, {
+          dataDrivenSizing: ddSizingConfig,
+          fixHeight: true,
+        })
+      );
+
+      // Assert: no overlap at actual rendered sizes
+      for (let i = 0; i < laidOut.length; i++) {
+        for (let j = i + 1; j < laidOut.length; j++) {
+          const a = laidOut[i];
+          const b = laidOut[j];
+          const overlap = rectsOverlap(
+            a.position.x, a.position.y, actualDims[i].width, actualDims[i].height,
+            b.position.x, b.position.y, actualDims[j].width, actualDims[j].height,
+          );
+          expect(overlap, `nodes ${a.id} and ${b.id} overlap`).toBe(false);
+        }
+      }
     });
   });
 });

@@ -16,6 +16,7 @@ import ReactFlow, {
 } from 'reactflow';
 import { buildGraphFromDatabase, applyDagreLayout } from '@/lib/reactflow-transform';
 import type { DagreLayoutOptions } from '@/lib/reactflow-transform';
+import { precomputeNodeDimensions } from '@/lib/data-driven-sizing';
 import { Paper, Text, Loader, ActionIcon, Tooltip, LoadingOverlay } from '@mantine/core';
 import { IconPalette, IconSettings } from '@tabler/icons-react';
 import { useAppStore } from '@/stores/useAppStore';
@@ -54,6 +55,7 @@ function DiagramFlow({
   const nodeDimensionsRef = useRef<Map<string, { width: number; height: number }>>(new Map());
   const expectedNodeCountRef = useRef(0);
   const measureTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const layoutRafRef = useRef<number | undefined>(undefined);
 
   // Track previous raw data to detect when graph content changes
   const prevRawNodesRef = useRef<Node[]>([]);
@@ -75,12 +77,21 @@ function DiagramFlow({
     [rawEdges, graphConfig.excludedEdgeSources]
   );
 
-  // Run dagre layout using measured or existing dimensions
+  // Run dagre layout using measured or pre-computed dimensions
   const runDagreLayout = useCallback(() => {
     layoutPhaseRef.current = 'LAYOUTING';
 
-    // Apply measured dimensions to nodes
-    const nodesWithDims = rawNodes.map((node) => {
+    // Pre-compute data-driven dimensions so dagre has correct sizes
+    // even when DOM measurements haven't completed yet
+    const precomputed = precomputeNodeDimensions(rawNodes, {
+      dataDrivenSizing: graphConfig.dataDrivenSizing,
+      fixWidth: graphConfig.fixWidth,
+      fixHeight: graphConfig.fixHeight,
+    });
+
+    // Override with DOM-measured dimensions where available (more accurate
+    // because they account for content-driven sizing)
+    const nodesWithDims = precomputed.map((node) => {
       const dims = nodeDimensionsRef.current.get(node.id);
       if (dims) {
         return { ...node, width: dims.width, height: dims.height };
@@ -99,7 +110,7 @@ function DiagramFlow({
       layoutPhaseRef.current = 'RENDERED';
       fitView({ padding: 0.1 });
     });
-  }, [rawNodes, rawEdges, layoutEdges, layoutOptions, setNodes, setEdges, fitView]);
+  }, [rawNodes, rawEdges, layoutEdges, layoutOptions, graphConfig.dataDrivenSizing, graphConfig.fixWidth, graphConfig.fixHeight, setNodes, setEdges, fitView]);
 
   // Intercept node changes to detect measurement events
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
@@ -124,6 +135,13 @@ function DiagramFlow({
 
   // Start measurement phase: place nodes at origin so ReactFlow renders and measures them
   const startMeasurement = useCallback(() => {
+    // Cancel any pending layout rAF to prevent race conditions
+    // (layout effect's rAF could fire after we clear dimensions)
+    if (layoutRafRef.current !== undefined) {
+      cancelAnimationFrame(layoutRafRef.current);
+      layoutRafRef.current = undefined;
+    }
+
     if (rawNodes.length === 0) {
       setNodes([]);
       setEdges(rawEdges);
@@ -181,8 +199,10 @@ function DiagramFlow({
       // Layout-only change: re-run dagre with existing measured dimensions
       if (nodeDimensionsRef.current.size > 0 && layoutPhaseRef.current === 'RENDERED') {
         setIsLayouting(true);
-        // Use rAF to let the loading overlay paint
-        requestAnimationFrame(() => {
+        // Use rAF to let the loading overlay paint; track it so
+        // startMeasurement can cancel if a sizing change fires in the same batch
+        layoutRafRef.current = requestAnimationFrame(() => {
+          layoutRafRef.current = undefined;
           runDagreLayout();
         });
       }
@@ -205,6 +225,9 @@ function DiagramFlow({
   useEffect(() => {
     return () => {
       clearTimeout(measureTimeoutRef.current);
+      if (layoutRafRef.current !== undefined) {
+        cancelAnimationFrame(layoutRafRef.current);
+      }
     };
   }, []);
 
