@@ -75,18 +75,20 @@ export function NumericBandsFilterEditor({
               label={index === 0 ? 'Min' : undefined}
               placeholder="Min value"
               value={band.min}
-              onChange={(val) =>
-                handleBandChange(index, 'min', Number(val) || 0)
-              }
+              onChange={(val) => {
+                if (typeof val === 'number') handleBandChange(index, 'min', val);
+              }}
+              clampBehavior="blur"
               style={{ flex: 1 }}
             />
             <NumberInput
               label={index === 0 ? 'Max' : undefined}
               placeholder="Max value"
               value={band.max}
-              onChange={(val) =>
-                handleBandChange(index, 'max', Number(val) || 0)
-              }
+              onChange={(val) => {
+                if (typeof val === 'number') handleBandChange(index, 'max', val);
+              }}
+              clampBehavior="blur"
               style={{ flex: 1 }}
             />
             <ColorPicker

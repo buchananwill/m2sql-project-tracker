@@ -68,7 +68,8 @@ function SortableStop({
   };
 
   const handleValueChange = (val: string | number) => {
-    let numVal = Number(val) || 0;
+    if (typeof val !== 'number') return;
+    let numVal = val;
     if (minValue !== undefined) numVal = Math.max(numVal, minValue);
     if (maxValue !== undefined) numVal = Math.min(numVal, maxValue);
     onValueChange(numVal);
@@ -82,6 +83,7 @@ function SortableStop({
       <NumberInput
         value={stop.value}
         onChange={handleValueChange}
+        clampBehavior="blur"
         min={minValue}
         max={maxValue}
         size="xs"

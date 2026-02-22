@@ -269,7 +269,10 @@ export function GraphConfigPanel() {
                 <NumberInput
                   label="Scale factor (px per unit)"
                   value={localConfig.dataDrivenSizing.scaleFactor}
-                  onChange={(val) => updateSizing({ scaleFactor: typeof val === 'number' ? val : 20 })}
+                  onChange={(val) => {
+                    if (typeof val === 'number') updateSizing({ scaleFactor: val });
+                  }}
+                  clampBehavior="blur"
                   min={1}
                   max={200}
                   size="xs"
@@ -277,7 +280,10 @@ export function GraphConfigPanel() {
                 <NumberInput
                   label="Minimum size (px)"
                   value={localConfig.dataDrivenSizing.minSize}
-                  onChange={(val) => updateSizing({ minSize: typeof val === 'number' ? val : 80 })}
+                  onChange={(val) => {
+                    if (typeof val === 'number') updateSizing({ minSize: val });
+                  }}
+                  clampBehavior="blur"
                   min={0}
                   max={500}
                   size="xs"
