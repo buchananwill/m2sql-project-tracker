@@ -53,7 +53,9 @@ export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
         ? styles.fixedHeight
         : styles.autoSize;
 
-  const truncateClass = graphConfig.fixWidth ? ` ${styles.truncate}` : '';
+  const hasConstrainedWidth = graphConfig.fixWidth
+    || (graphConfig.dataDrivenSizing.enabled && graphConfig.dataDrivenSizing.axis === 'width');
+  const truncateClass = hasConstrainedWidth ? ` ${styles.truncate}` : '';
 
   // Dynamic handle positions based on layout direction
   const handlePositions = getHandlePositions(graphConfig.rankdir);

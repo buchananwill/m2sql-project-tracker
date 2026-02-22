@@ -1,3 +1,4 @@
 # UI Tweaks for QoL
 
 - [x] In the "Graph Settings" drawer, the "scale factor" number spinner is too aggressive in validating the input value. It is awkward to enter a value if the user wants to delete the current value, because deleting the current value creates an invalid state, which is immediately overwritten by the UI. The input value should only be validated and overwritten when the spinner loses focus. How can this be accomplished? There are other spinners throughout the UI that behave similarly. 
+- [ ] if the label for a node exceeds the allowed width of a node (e.g. due to data-driven sizing), it is currently wrapping, and growing vertically. The label should always be a single, non-wrapping line. If the text overflows when the width is fixed, it must use ellipsis.
