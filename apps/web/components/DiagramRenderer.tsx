@@ -23,6 +23,7 @@ import { useAppStore } from '@/stores/useAppStore';
 import { TaskNode } from '@/components/nodes';
 import { ColorCodingPanel } from '@/components/color-coding/ColorCodingPanel';
 import { GraphConfigPanel } from '@/components/graph-config/GraphConfigPanel';
+import { NodePopover } from '@/components/nodes/NodePopover';
 import styles from './DiagramRenderer.module.css';
 
 type LayoutPhase = 'IDLE' | 'MEASURING' | 'LAYOUTING' | 'RENDERED';
@@ -327,6 +328,7 @@ export function DiagramRenderer() {
 
       <ColorCodingPanel />
       <GraphConfigPanel />
+      <NodePopover />
     </>
   );
 }

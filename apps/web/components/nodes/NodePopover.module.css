@@ -1,0 +1,24 @@
+.popover {
+  position: fixed;
+  z-index: 15;
+  pointer-events: none;
+
+  /* Center horizontally on screenX, position above screenY */
+  transform: translate(-50%, calc(-100% - 8px));
+
+  background-color: #1f2937;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

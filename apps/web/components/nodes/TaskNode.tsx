@@ -6,7 +6,7 @@
 
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
 import { useAppStore } from '@/stores/useAppStore';
 import { evaluateFilters } from '@/lib/color-filter-engine';
@@ -23,10 +23,11 @@ function getHandlePositions(rankdir: RankDir): { target: Position; source: Posit
   }
 }
 
-export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
+export const TaskNode = memo(function TaskNode({ id, data }: NodeProps) {
   // Get config from store
   const colorCodingConfig = useAppStore((state) => state.uiState.colorCodingConfig);
   const graphConfig = useAppStore((state) => state.uiState.graphConfig);
+  const setHoveredNode = useAppStore((state) => state.setHoveredNode);
 
   // Evaluate filters to get colors
   const backgroundColor = evaluateFilters(data, colorCodingConfig.background) || '#ffffff';
@@ -75,6 +76,20 @@ export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
     ? (dataDrivenSizing.axis === 'width' ? styles.dataDrivenWidth : styles.dataDrivenHeight)
     : sizingClass;
 
+  const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredNode({
+      nodeId: id,
+      label: (data.label as string) || 'Unnamed Task',
+      screenX: rect.left + rect.width / 2,
+      screenY: rect.top,
+    });
+  }, [id, data.label, setHoveredNode]);
+
+  const handleMouseLeave = useCallback(() => {
+    setHoveredNode(null);
+  }, [setHoveredNode]);
+
   return (
     <>
       <Handle type="target" position={handlePositions.target} />
@@ -86,6 +101,8 @@ export const TaskNode = memo(function TaskNode({ data }: NodeProps) {
           color: textColor,
           ...dataDrivenStyle,
         }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <div className={`${styles.nodeHeader}${truncateClass}`} style={{ color: textColor }}>
           {label || 'Unnamed Task'}

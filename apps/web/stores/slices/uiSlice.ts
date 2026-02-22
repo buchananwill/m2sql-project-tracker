@@ -23,12 +23,20 @@ export interface GraphRendererConfig {
   dataDrivenSizing: DataDrivenSizingConfig;
 }
 
+export interface HoveredNodeInfo {
+  nodeId: string;
+  label: string;
+  screenX: number;
+  screenY: number;
+}
+
 export interface UIState {
   sidebarCollapsed: boolean;
   colorCodingConfig: ColorCodingConfig;
   colorCodingPanelOpen: boolean;
   graphConfig: GraphRendererConfig;
   graphConfigPanelOpen: boolean;
+  hoveredNode: HoveredNodeInfo | null;
 }
 
 export interface UISlice {
@@ -42,6 +50,7 @@ export interface UISlice {
   setColorCodingPanelOpen: (open: boolean) => void;
   setGraphConfig: (config: GraphRendererConfig) => void;
   setGraphConfigPanelOpen: (open: boolean) => void;
+  setHoveredNode: (info: HoveredNodeInfo | null) => void;
 }
 
 const initialUIState: UIState = {
@@ -69,6 +78,7 @@ const initialUIState: UIState = {
     },
   },
   graphConfigPanelOpen: false,
+  hoveredNode: null,
 };
 
 export const createUISlice: StateCreator<
@@ -143,6 +153,17 @@ export const createUISlice: StateCreator<
       },
       false,
       'ui/setGraphConfigPanelOpen'
+    );
+  },
+
+  // Set hovered node for popover
+  setHoveredNode: (info) => {
+    set(
+      (state) => {
+        state.uiState.hoveredNode = info;
+      },
+      false,
+      'ui/setHoveredNode'
     );
   },
 });
