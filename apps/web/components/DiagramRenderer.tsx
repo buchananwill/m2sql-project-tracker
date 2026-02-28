@@ -17,8 +17,15 @@ import ReactFlow, {
 import { buildGraphFromDatabase, applyDagreLayout } from '@/lib/reactflow-transform';
 import type { DagreLayoutOptions } from '@/lib/reactflow-transform';
 import { precomputeNodeDimensions } from '@/lib/data-driven-sizing';
-import { Paper, Text, Loader, ActionIcon, Tooltip, LoadingOverlay } from '@mantine/core';
-import { IconPalette, IconSettings } from '@tabler/icons-react';
+import {
+  resolveCollapseRelationship,
+  buildParentChildMap,
+  computeHiddenNodeIds,
+  computeNodesWithChildren,
+  resolveHiddenNodePositions,
+} from '@/lib/collapse-graph';
+import { Paper, Text, Loader, ActionIcon, Tooltip, LoadingOverlay, Button } from '@mantine/core';
+import { IconPalette, IconSettings, IconLayoutDashboard } from '@tabler/icons-react';
 import { useAppStore } from '@/stores/useAppStore';
 import { TaskNode } from '@/components/nodes';
 import { ColorCodingPanel } from '@/components/color-coding/ColorCodingPanel';
@@ -30,18 +37,26 @@ type LayoutPhase = 'IDLE' | 'MEASURING' | 'LAYOUTING' | 'RENDERED';
 
 /**
  * Inner component that uses ReactFlow hooks (must be inside ReactFlowProvider).
- * Implements a two-phase measure-then-layout pipeline:
- * 1. MEASURING: Render nodes at (0,0) so the DOM measures their actual sizes
- * 2. LAYOUTING: Run dagre with measured sizes, then set final positions
+ *
+ * Receives ALL graph nodes (including applied-hidden ones). Dagre only runs on
+ * the applied-visible subset; applied-hidden nodes are placed at their nearest
+ * visible ancestor's position. Pending collapse visibility is managed separately
+ * via ReactFlow's `hidden` property — nodes appear/disappear immediately at
+ * their current positions without triggering layout recalculation.
  */
 function DiagramFlow({
   rawNodes,
   rawEdges,
+  appliedHiddenNodeIds,
+  collapseParentChildMap,
 }: {
   rawNodes: Node[];
   rawEdges: Edge[];
+  appliedHiddenNodeIds: Set<string>;
+  collapseParentChildMap: Map<string, Set<string>>;
 }) {
-  const graphConfig = useAppStore((state) => state.uiState.graphConfig);
+  const graphConfig = useAppStore((state) => state.uiState.appliedGraphConfig);
+  const pendingCollapsedNodeIds = useAppStore((state) => state.uiState.pendingGraphConfig.collapsedNodeIds);
   const { fitView } = useReactFlow();
 
   // Controlled ReactFlow state
@@ -62,7 +77,57 @@ function DiagramFlow({
   const prevRawNodesRef = useRef<Node[]>([]);
   const prevLayoutOptionsRef = useRef<string>('');
 
-  // Compute layout options from config
+  // ── Applied-visible subset (stable — only changes on Apply) ──
+
+  const visibleNodes = useMemo(
+    () => rawNodes.filter((n) => !appliedHiddenNodeIds.has(n.id)),
+    [rawNodes, appliedHiddenNodeIds],
+  );
+
+  const visibleEdges = useMemo(
+    () => rawEdges.filter(
+      (e) => !appliedHiddenNodeIds.has(e.source) && !appliedHiddenNodeIds.has(e.target),
+    ),
+    [rawEdges, appliedHiddenNodeIds],
+  );
+
+  // ── Pending collapse visibility ──────────────────────────────
+
+  const pendingHiddenNodeIds = useMemo(
+    () => computeHiddenNodeIds(pendingCollapsedNodeIds, collapseParentChildMap),
+    [pendingCollapsedNodeIds, collapseParentChildMap],
+  );
+
+  // Ref so layout callbacks read the latest value without being re-created
+  const pendingHiddenRef = useRef(pendingHiddenNodeIds);
+  pendingHiddenRef.current = pendingHiddenNodeIds;
+
+  // Also keep a ref for the applied-hidden set (used in layout callback)
+  const appliedHiddenRef = useRef(appliedHiddenNodeIds);
+  appliedHiddenRef.current = appliedHiddenNodeIds;
+
+  // Apply hidden flag to already-rendered nodes/edges whenever the
+  // pending hidden set changes. Nodes stay at their positions.
+  useEffect(() => {
+    if (layoutPhaseRef.current !== 'RENDERED') return;
+
+    setNodes((prev) =>
+      prev.map((n) => {
+        const shouldHide = pendingHiddenNodeIds.has(n.id);
+        return n.hidden === shouldHide ? n : { ...n, hidden: shouldHide };
+      }),
+    );
+    setEdges((prev) =>
+      prev.map((e) => {
+        const shouldHide =
+          pendingHiddenNodeIds.has(e.source) || pendingHiddenNodeIds.has(e.target);
+        return e.hidden === shouldHide ? e : { ...e, hidden: shouldHide };
+      }),
+    );
+  }, [pendingHiddenNodeIds, setNodes, setEdges]);
+
+  // ── Layout config ────────────────────────────────────────────
+
   const layoutOptions: DagreLayoutOptions = useMemo(() => ({
     rankdir: graphConfig.rankdir,
     nodesep: graphConfig.nodesep,
@@ -70,28 +135,27 @@ function DiagramFlow({
     ranker: "longest-path"
   }), [graphConfig.rankdir, graphConfig.nodesep, graphConfig.ranksep]);
 
-  // Filter edges for layout
+  // Filter edges for dagre (exclude user-unchecked edge sources)
   const layoutEdges = useMemo(() =>
-    rawEdges.filter(
+    visibleEdges.filter(
       (e) => !graphConfig.excludedEdgeSources.includes(e.data?.junctionTable)
     ),
-    [rawEdges, graphConfig.excludedEdgeSources]
+    [visibleEdges, graphConfig.excludedEdgeSources]
   );
 
-  // Run dagre layout using measured or pre-computed dimensions
+  // ── Layout pipeline ──────────────────────────────────────────
+
   const runDagreLayout = useCallback(() => {
     layoutPhaseRef.current = 'LAYOUTING';
 
-    // Pre-compute data-driven dimensions so dagre has correct sizes
-    // even when DOM measurements haven't completed yet
-    const precomputed = precomputeNodeDimensions(rawNodes, {
+    // Pre-compute dimensions for applied-visible nodes only
+    const precomputed = precomputeNodeDimensions(visibleNodes, {
       dataDrivenSizing: graphConfig.dataDrivenSizing,
       fixWidth: graphConfig.fixWidth,
       fixHeight: graphConfig.fixHeight,
     });
 
-    // Override with DOM-measured dimensions where available (more accurate
-    // because they account for content-driven sizing)
+    // Override with DOM-measured dimensions
     const nodesWithDims = precomputed.map((node) => {
       const dims = nodeDimensionsRef.current.get(node.id);
       if (dims) {
@@ -100,20 +164,55 @@ function DiagramFlow({
       return node;
     });
 
+    // Run dagre on applied-visible nodes only
     const { nodes: layoutedNodes } = applyDagreLayout(nodesWithDims, layoutEdges, layoutOptions);
 
-    setNodes(layoutedNodes);
-    setEdges(rawEdges);
+    // Build a position lookup from dagre results
+    const positionMap = new Map<string, { x: number; y: number }>();
+    for (const n of layoutedNodes) {
+      positionMap.set(n.id, n.position);
+    }
+
+    // Resolve positions for applied-hidden nodes (nearest visible ancestor)
+    const appliedHidden = appliedHiddenRef.current;
+    const hiddenPositions = resolveHiddenNodePositions(
+      appliedHidden,
+      collapseParentChildMap,
+      positionMap,
+    );
+
+    // Place hidden nodes at their ancestor positions
+    const hiddenNodes = rawNodes
+      .filter((n) => appliedHidden.has(n.id))
+      .map((n) => ({
+        ...n,
+        position: hiddenPositions.get(n.id) ?? { x: 0, y: 0 },
+      }));
+
+    // Merge: dagre-positioned visible nodes + ancestor-positioned hidden nodes
+    const allPositioned = [...layoutedNodes, ...hiddenNodes];
+
+    // Apply pending visibility so hidden nodes never flash on screen
+    const pendingHidden = pendingHiddenRef.current;
+    const nodesWithVisibility = allPositioned.map((n) => ({
+      ...n,
+      hidden: pendingHidden.has(n.id),
+    }));
+    const edgesWithVisibility = rawEdges.map((e) => ({
+      ...e,
+      hidden: pendingHidden.has(e.source) || pendingHidden.has(e.target),
+    }));
+
+    setNodes(nodesWithVisibility);
+    setEdges(edgesWithVisibility);
     setIsLayouting(false);
 
-    // Fit view after layout settles
     requestAnimationFrame(() => {
       layoutPhaseRef.current = 'RENDERED';
       fitView({ padding: 0.1 });
     });
-  }, [rawNodes, rawEdges, layoutEdges, layoutOptions, graphConfig.dataDrivenSizing, graphConfig.fixWidth, graphConfig.fixHeight, setNodes, setEdges, fitView]);
+  }, [visibleNodes, rawNodes, rawEdges, layoutEdges, layoutOptions, collapseParentChildMap, graphConfig.dataDrivenSizing, graphConfig.fixWidth, graphConfig.fixHeight, setNodes, setEdges, fitView]);
 
-  // Intercept node changes to detect measurement events
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     onNodesChange(changes);
 
@@ -134,18 +233,26 @@ function DiagramFlow({
     }
   }, [onNodesChange, runDagreLayout]);
 
-  // Start measurement phase: place nodes at origin so ReactFlow renders and measures them
+  // Start measurement — only measures applied-visible nodes
   const startMeasurement = useCallback(() => {
-    // Cancel any pending layout rAF to prevent race conditions
-    // (layout effect's rAF could fire after we clear dimensions)
     if (layoutRafRef.current !== undefined) {
       cancelAnimationFrame(layoutRafRef.current);
       layoutRafRef.current = undefined;
     }
 
-    if (rawNodes.length === 0) {
-      setNodes([]);
-      setEdges(rawEdges);
+    if (visibleNodes.length === 0) {
+      // No visible nodes — still set hidden nodes so they exist for potential expand
+      const pendingHidden = pendingHiddenRef.current;
+      const hiddenOnly = rawNodes.map((n) => ({
+        ...n,
+        position: { x: 0, y: 0 },
+        hidden: pendingHidden.has(n.id),
+      }));
+      setNodes(hiddenOnly);
+      setEdges(rawEdges.map((e) => ({
+        ...e,
+        hidden: pendingHidden.has(e.source) || pendingHidden.has(e.target),
+      })));
       layoutPhaseRef.current = 'RENDERED';
       setIsLayouting(false);
       return;
@@ -154,38 +261,42 @@ function DiagramFlow({
     layoutPhaseRef.current = 'MEASURING';
     setIsLayouting(true);
     nodeDimensionsRef.current.clear();
-    expectedNodeCountRef.current = rawNodes.length;
+    expectedNodeCountRef.current = visibleNodes.length;
 
-    // Place nodes at staggered positions so they're rendered but off-screen won't cause issues
-    const measureNodes = rawNodes.map((node, i) => ({
-      ...node,
-      position: { x: 0, y: i * 200 },
-      // Clear any previous width/height so ReactFlow re-measures
-      width: undefined,
-      height: undefined,
-    }));
+    // Place visible nodes at staggered positions for measurement;
+    // hide applied-hidden nodes so they don't interfere with measurement count
+    const measureNodes = rawNodes.map((node, i) => {
+      if (appliedHiddenRef.current.has(node.id)) {
+        return { ...node, position: { x: 0, y: 0 }, hidden: true };
+      }
+      return {
+        ...node,
+        position: { x: 0, y: i * 200 },
+        width: undefined,
+        height: undefined,
+      };
+    });
 
     setNodes(measureNodes);
     setEdges(rawEdges);
 
-    // Timeout fallback: if not all nodes measured in 2s, proceed with what we have
     clearTimeout(measureTimeoutRef.current);
     measureTimeoutRef.current = setTimeout(() => {
       if (layoutPhaseRef.current === 'MEASURING') {
         runDagreLayout();
       }
     }, 2000);
-  }, [rawNodes, rawEdges, setNodes, setEdges, runDagreLayout]);
+  }, [visibleNodes, rawNodes, rawEdges, setNodes, setEdges, runDagreLayout]);
 
-  // Effect: detect when raw graph data changes → trigger measurement
+  // Effect: detect when the applied-visible node set changes → trigger measurement
   useEffect(() => {
-    const nodesChanged = rawNodes !== prevRawNodesRef.current;
-    prevRawNodesRef.current = rawNodes;
+    const changed = visibleNodes !== prevRawNodesRef.current;
+    prevRawNodesRef.current = visibleNodes;
 
-    if (nodesChanged) {
+    if (changed) {
       startMeasurement();
     }
-  }, [rawNodes, startMeasurement]);
+  }, [visibleNodes, startMeasurement]);
 
   // Effect: detect layout-only config changes → re-layout without re-measuring
   useEffect(() => {
@@ -197,11 +308,8 @@ function DiagramFlow({
     });
 
     if (prevLayoutOptionsRef.current && prevLayoutOptionsRef.current !== currentKey) {
-      // Layout-only change: re-run dagre with existing measured dimensions
       if (nodeDimensionsRef.current.size > 0 && layoutPhaseRef.current === 'RENDERED') {
         setIsLayouting(true);
-        // Use rAF to let the loading overlay paint; track it so
-        // startMeasurement can cancel if a sizing change fires in the same batch
         layoutRafRef.current = requestAnimationFrame(() => {
           layoutRafRef.current = undefined;
           runDagreLayout();
@@ -214,11 +322,9 @@ function DiagramFlow({
 
   // Effect: detect sizing config changes → re-measure
   useEffect(() => {
-    // Only trigger if we've already rendered once (avoid double-trigger on mount)
-    if (layoutPhaseRef.current === 'RENDERED' && rawNodes.length > 0) {
+    if (layoutPhaseRef.current === 'RENDERED' && visibleNodes.length > 0) {
       startMeasurement();
     }
-    // We intentionally only react to these specific sizing configs
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphConfig.fixWidth, graphConfig.fixHeight, graphConfig.hiddenColumns, graphConfig.dataDrivenSizing]);
 
@@ -263,6 +369,9 @@ const nodeTypes = { task: TaskNode };
 
 export function DiagramRenderer() {
   const database = useAppStore((state) => state.database);
+  const appliedGraphConfig = useAppStore((state) => state.uiState.appliedGraphConfig);
+  const pendingGraphConfig = useAppStore((state) => state.uiState.pendingGraphConfig);
+  const applyGraphConfig = useAppStore((state) => state.applyGraphConfig);
   const setColorCodingPanelOpen = useAppStore((state) => state.setColorCodingPanelOpen);
   const setGraphConfigPanelOpen = useAppStore((state) => state.setGraphConfigPanelOpen);
 
@@ -271,6 +380,54 @@ export function DiagramRenderer() {
     if (!database) return null;
     return buildGraphFromDatabase(database);
   }, [database]);
+
+  // Dirty check: pending config differs from applied
+  const isGraphConfigDirty = useMemo(
+    () => JSON.stringify(pendingGraphConfig) !== JSON.stringify(appliedGraphConfig),
+    [pendingGraphConfig, appliedGraphConfig],
+  );
+
+  // ── Collapse: parent-child map (from pending relationship) ───
+
+  const pendingCollapseJT = useMemo(() => {
+    if (!database) return null;
+    return resolveCollapseRelationship(database, pendingGraphConfig.collapseRelationship);
+  }, [database, pendingGraphConfig.collapseRelationship]);
+
+  const collapseParentChildMap = useMemo(() => {
+    if (!rawGraph || !pendingCollapseJT) return new Map<string, Set<string>>();
+    return buildParentChildMap(rawGraph.edges, pendingCollapseJT);
+  }, [rawGraph, pendingCollapseJT]);
+
+  // ── Collapse: applied-hidden set (drives dagre filtering) ────
+
+  const appliedCollapseJT = useMemo(() => {
+    if (!database) return null;
+    return resolveCollapseRelationship(database, appliedGraphConfig.collapseRelationship);
+  }, [database, appliedGraphConfig.collapseRelationship]);
+
+  const appliedHiddenNodeIds = useMemo(() => {
+    if (!rawGraph || !appliedCollapseJT) return new Set<string>();
+    const map = buildParentChildMap(rawGraph.edges, appliedCollapseJT);
+    const validNodeIds = new Set(rawGraph.nodes.map((n) => n.id));
+    const validCollapsedIds = appliedGraphConfig.collapsedNodeIds.filter(
+      (id) => validNodeIds.has(id),
+    );
+    return computeHiddenNodeIds(validCollapsedIds, map);
+  }, [rawGraph, appliedCollapseJT, appliedGraphConfig.collapsedNodeIds]);
+
+  // ── Enrich nodes with _hasChildren (stable per-database) ─────
+
+  const enrichedNodes = useMemo(() => {
+    if (!rawGraph) return [];
+    if (collapseParentChildMap.size === 0) return rawGraph.nodes;
+
+    const nodesWithChildren = computeNodesWithChildren(collapseParentChildMap);
+    return rawGraph.nodes.map((n) => {
+      if (!nodesWithChildren.has(n.id)) return n;
+      return { ...n, data: { ...n.data, _hasChildren: true } };
+    });
+  }, [rawGraph, collapseParentChildMap]);
 
   if (!database) {
     return (
@@ -318,10 +475,24 @@ export function DiagramRenderer() {
           </Tooltip>
         </div>
 
+        {isGraphConfigDirty && (
+          <div className={styles.applyLayoutInset}>
+            <Button
+              size="compact-sm"
+              leftSection={<IconLayoutDashboard size={16} />}
+              onClick={applyGraphConfig}
+            >
+              Apply Layout
+            </Button>
+          </div>
+        )}
+
         <ReactFlowProvider>
           <DiagramFlow
-            rawNodes={rawGraph.nodes}
+            rawNodes={enrichedNodes}
             rawEdges={rawGraph.edges}
+            appliedHiddenNodeIds={appliedHiddenNodeIds}
+            collapseParentChildMap={collapseParentChildMap}
           />
         </ReactFlowProvider>
       </Paper>

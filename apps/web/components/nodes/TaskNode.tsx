@@ -8,6 +8,8 @@
 
 import { memo, useMemo, useCallback } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
+import { ActionIcon } from '@mantine/core';
+import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useAppStore } from '@/stores/useAppStore';
 import { evaluateFilters } from '@/lib/color-filter-engine';
 import { computeNodeInlineStyle } from '@/lib/data-driven-sizing';
@@ -26,8 +28,10 @@ function getHandlePositions(rankdir: RankDir): { target: Position; source: Posit
 export const TaskNode = memo(function TaskNode({ id, data }: NodeProps) {
   // Get config from store
   const colorCodingConfig = useAppStore((state) => state.uiState.colorCodingConfig);
-  const graphConfig = useAppStore((state) => state.uiState.graphConfig);
+  const graphConfig = useAppStore((state) => state.uiState.appliedGraphConfig);
   const setHoveredNode = useAppStore((state) => state.setHoveredNode);
+  const updatePendingGraphConfig = useAppStore((state) => state.updatePendingGraphConfig);
+  const pendingCollapsedNodeIds = useAppStore((state) => state.uiState.pendingGraphConfig.collapsedNodeIds);
 
   // Evaluate filters to get colors
   const backgroundColor = evaluateFilters(data, colorCodingConfig.background) || '#ffffff';
@@ -36,6 +40,14 @@ export const TaskNode = memo(function TaskNode({ id, data }: NodeProps) {
 
   // Extract label and other fields
   const { label, name, tableName, ...otherFields } = data;
+
+  // Collapse state: _hasChildren comes from enriched node data (stable),
+  // isCollapsed is read from the store so chevron clicks don't create
+  // new node object references (which would trigger re-measurement).
+  const hasChildren = otherFields._hasChildren as boolean | undefined;
+  const isCollapsed = useAppStore(
+    (state) => state.uiState.pendingGraphConfig.collapsedNodeIds.includes(id),
+  );
 
   // Determine hidden columns for this node's table
   const hiddenCols = graphConfig.hiddenColumns[tableName] || [];
@@ -90,6 +102,15 @@ export const TaskNode = memo(function TaskNode({ id, data }: NodeProps) {
     setHoveredNode(null);
   }, [setHoveredNode]);
 
+  const handleCollapseToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const current = pendingCollapsedNodeIds;
+    const updated = current.includes(id)
+      ? current.filter((nid) => nid !== id)
+      : [...current, id];
+    updatePendingGraphConfig({ collapsedNodeIds: updated });
+  }, [id, pendingCollapsedNodeIds, updatePendingGraphConfig]);
+
   return (
     <>
       <Handle type="target" position={handlePositions.target} />
@@ -104,8 +125,23 @@ export const TaskNode = memo(function TaskNode({ id, data }: NodeProps) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className={`${styles.nodeHeader}${truncateClass}`} style={{ color: textColor }}>
-          {label || 'Unnamed Task'}
+        <div className={styles.nodeHeader} style={{ color: textColor }}>
+          <span className={`${styles.headerLabel}${truncateClass}`}>
+            {label || 'Unnamed Task'}
+          </span>
+          {hasChildren && (
+            <ActionIcon
+              size="xs"
+              variant="subtle"
+              color="gray"
+              onClick={handleCollapseToggle}
+              className={styles.collapseButton}
+            >
+              {isCollapsed
+                ? <IconChevronRight size={14} />
+                : <IconChevronDown size={14} />}
+            </ActionIcon>
+          )}
         </div>
         <div className={styles.nodeContent}>
           {displayFields.map(([key, value]) => (

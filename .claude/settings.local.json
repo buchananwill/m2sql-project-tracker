@@ -21,7 +21,8 @@
       "Bash(pnpm --filter web test:*)",
       "Bash(pnpm --filter model exec tsc:*)",
       "Bash(npx vitest run:*)",
-      "Bash(npx next build:*)"
+      "Bash(npx next build:*)",
+      "Bash(pnpm:*)"
     ]
   }
 }

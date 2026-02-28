@@ -7,61 +7,47 @@
  * - Data-driven sizing (numeric column → node dimension)
  * - Per-table column visibility
  * - Edge inclusion in layout algorithm
+ * - Collapse hierarchy relationship
  *
- * All controls update local state immediately for responsive UI.
- * The "Apply Layout" button commits local state to the store,
- * triggering the graph re-layout.
+ * All controls write directly to pendingGraphConfig in the store.
+ * The "Apply Layout" button commits pending → applied, triggering re-layout.
  */
 
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 import {
   Drawer, Stack, Switch, Text, Checkbox, Divider,
   SegmentedControl, Slider, NumberInput, Select, Button,
 } from '@mantine/core';
 import { useAppStore } from '@/stores/useAppStore';
 import { buildGraphFromDatabase } from '@/lib/reactflow-transform';
-import type { GraphRendererConfig, RankDir, DataDrivenSizingConfig } from '@/stores/slices/uiSlice';
+import type { RankDir, DataDrivenSizingConfig } from '@/stores/slices/uiSlice';
 import styles from './GraphConfigPanel.module.css';
 
 export function GraphConfigPanel() {
   const opened = useAppStore((state) => state.uiState.graphConfigPanelOpen);
   const setOpened = useAppStore((state) => state.setGraphConfigPanelOpen);
-  const storeConfig = useAppStore((state) => state.uiState.graphConfig);
-  const setGraphConfig = useAppStore((state) => state.setGraphConfig);
+  const pendingConfig = useAppStore((state) => state.uiState.pendingGraphConfig);
+  const appliedConfig = useAppStore((state) => state.uiState.appliedGraphConfig);
+  const updatePendingGraphConfig = useAppStore((state) => state.updatePendingGraphConfig);
+  const applyGraphConfig = useAppStore((state) => state.applyGraphConfig);
+  const autoApplyLayout = useAppStore((state) => state.uiState.autoApplyLayout);
+  const setAutoApplyLayout = useAppStore((state) => state.setAutoApplyLayout);
   const database = useAppStore((state) => state.database);
 
-  // Local config state — mirrors the store but updates immediately on user input.
-  // Changes are only committed to the store (triggering graph re-layout) when
-  // the user clicks "Apply Layout".
-  const [localConfig, setLocalConfig] = useState<GraphRendererConfig>(storeConfig);
-
-  // Sync local state from store when the panel opens (reset unsaved edits)
-  const prevOpenedRef = useRef(false);
-  useEffect(() => {
-    if (opened && !prevOpenedRef.current) {
-      setLocalConfig(storeConfig);
-    }
-    prevOpenedRef.current = opened;
-  }, [opened, storeConfig]);
-
-  // Dirty flag: local config differs from store config
+  // Dirty flag: pending config differs from applied config
   const isDirty = useMemo(
-    () => JSON.stringify(localConfig) !== JSON.stringify(storeConfig),
-    [localConfig, storeConfig],
+    () => JSON.stringify(pendingConfig) !== JSON.stringify(appliedConfig),
+    [pendingConfig, appliedConfig],
   );
 
-  // Apply: commit local state to the store → triggers graph re-layout
-  const applyLayout = () => {
-    setGraphConfig(localConfig);
-  };
-
   // Extract table → columns mapping, junction table names, and numeric columns
-  const { tableColumns, junctionTableNames, numericColumns } = useMemo(() => {
+  const { tableColumns, junctionTableNames, junctionTablesWithTokens, numericColumns } = useMemo(() => {
     if (!database) return {
       tableColumns: {} as Record<string, string[]>,
       junctionTableNames: [] as string[],
+      junctionTablesWithTokens: [] as { value: string; label: string }[],
       numericColumns: [] as string[],
     };
 
@@ -96,52 +82,48 @@ export function GraphConfigPanel() {
       }
     }
 
+    // Build junction tables with arrow tokens for the collapse dropdown
+    const jtWithTokens = (database.arrowMappings || []).map((m) => ({
+      value: m.junctionTable,
+      label: `${m.junctionTable} (${m.arrowToken})`,
+    }));
+
     return {
       tableColumns,
       junctionTableNames: Array.from(jtNames).sort(),
+      junctionTablesWithTokens: jtWithTokens,
       numericColumns: Array.from(numericCols).sort(),
     };
   }, [database]);
 
-  // Helpers to update local config
-  const update = (patch: Partial<GraphRendererConfig>) => {
-    setLocalConfig((prev) => ({ ...prev, ...patch }));
-  };
-
+  // Helpers to update pending config
   const updateSizing = (patch: Partial<DataDrivenSizingConfig>) => {
-    setLocalConfig((prev) => ({
-      ...prev,
-      dataDrivenSizing: { ...prev.dataDrivenSizing, ...patch },
-    }));
+    updatePendingGraphConfig({
+      dataDrivenSizing: { ...pendingConfig.dataDrivenSizing, ...patch },
+    });
   };
 
   const toggleColumnVisibility = (tableName: string, column: string) => {
-    setLocalConfig((prev) => {
-      const current = prev.hiddenColumns[tableName] || [];
-      const isHidden = current.includes(column);
-      const updated = isHidden
-        ? current.filter((c) => c !== column)
-        : [...current, column];
+    const current = pendingConfig.hiddenColumns[tableName] || [];
+    const isHidden = current.includes(column);
+    const updated = isHidden
+      ? current.filter((c) => c !== column)
+      : [...current, column];
 
-      return {
-        ...prev,
-        hiddenColumns: {
-          ...prev.hiddenColumns,
-          [tableName]: updated,
-        },
-      };
+    updatePendingGraphConfig({
+      hiddenColumns: {
+        ...pendingConfig.hiddenColumns,
+        [tableName]: updated,
+      },
     });
   };
 
   const toggleEdgeSource = (junctionTable: string) => {
-    setLocalConfig((prev) => {
-      const isExcluded = prev.excludedEdgeSources.includes(junctionTable);
-      return {
-        ...prev,
-        excludedEdgeSources: isExcluded
-          ? prev.excludedEdgeSources.filter((s) => s !== junctionTable)
-          : [...prev.excludedEdgeSources, junctionTable],
-      };
+    const isExcluded = pendingConfig.excludedEdgeSources.includes(junctionTable);
+    updatePendingGraphConfig({
+      excludedEdgeSources: isExcluded
+        ? pendingConfig.excludedEdgeSources.filter((s) => s !== junctionTable)
+        : [...pendingConfig.excludedEdgeSources, junctionTable],
     });
   };
 
@@ -154,23 +136,30 @@ export function GraphConfigPanel() {
       title="Graph Settings"
     >
       <Stack gap="lg" className={styles.content}>
-        {/* Apply Layout button — prominent, sticky-feeling at the top */}
-        <Button
-          fullWidth
-          size="md"
-          disabled={!isDirty}
-          onClick={applyLayout}
-        >
-          Apply Layout
-        </Button>
+        {/* Apply Layout controls */}
+        <Stack gap="xs">
+          <Button
+            fullWidth
+            size="md"
+            disabled={!isDirty || autoApplyLayout}
+            onClick={applyGraphConfig}
+          >
+            Apply Layout
+          </Button>
+          <Switch
+            label="Auto-apply layout changes"
+            checked={autoApplyLayout}
+            onChange={(e) => setAutoApplyLayout(e.currentTarget.checked)}
+          />
+        </Stack>
 
         {/* Layout Direction */}
         <div>
           <Text fw={600} size="sm" mb="xs">Layout Direction</Text>
           <SegmentedControl
             fullWidth
-            value={localConfig.rankdir}
-            onChange={(val) => update({ rankdir: val as RankDir })}
+            value={pendingConfig.rankdir}
+            onChange={(val) => updatePendingGraphConfig({ rankdir: val as RankDir })}
             data={[
               { label: 'Top-Down', value: 'TB' },
               { label: 'Left-Right', value: 'LR' },
@@ -188,26 +177,26 @@ export function GraphConfigPanel() {
           <Stack gap="sm">
             <div>
               <Text size="xs" c="dimmed" mb={4}>
-                Between nodes (nodesep): {localConfig.nodesep}px
+                Between nodes (nodesep): {pendingConfig.nodesep}px
               </Text>
               <Slider
                 min={0}
                 max={400}
                 step={10}
-                value={localConfig.nodesep}
-                onChange={(val) => update({ nodesep: val })}
+                value={pendingConfig.nodesep}
+                onChange={(val) => updatePendingGraphConfig({ nodesep: val })}
               />
             </div>
             <div>
               <Text size="xs" c="dimmed" mb={4}>
-                Between ranks (ranksep): {localConfig.ranksep}px
+                Between ranks (ranksep): {pendingConfig.ranksep}px
               </Text>
               <Slider
                 min={0}
                 max={400}
                 step={10}
-                value={localConfig.ranksep}
-                onChange={(val) => update({ ranksep: val })}
+                value={pendingConfig.ranksep}
+                onChange={(val) => updatePendingGraphConfig({ ranksep: val })}
               />
             </div>
           </Stack>
@@ -221,13 +210,13 @@ export function GraphConfigPanel() {
           <Stack gap="xs">
             <Switch
               label="Fix width"
-              checked={localConfig.fixWidth}
-              onChange={(e) => update({ fixWidth: e.currentTarget.checked })}
+              checked={pendingConfig.fixWidth}
+              onChange={(e) => updatePendingGraphConfig({ fixWidth: e.currentTarget.checked })}
             />
             <Switch
               label="Fix height"
-              checked={localConfig.fixHeight}
-              onChange={(e) => update({ fixHeight: e.currentTarget.checked })}
+              checked={pendingConfig.fixHeight}
+              onChange={(e) => updatePendingGraphConfig({ fixHeight: e.currentTarget.checked })}
             />
           </Stack>
         </div>
@@ -240,15 +229,15 @@ export function GraphConfigPanel() {
           <Stack gap="xs">
             <Switch
               label="Enable data-driven sizing"
-              checked={localConfig.dataDrivenSizing.enabled}
+              checked={pendingConfig.dataDrivenSizing.enabled}
               onChange={(e) => updateSizing({ enabled: e.currentTarget.checked })}
             />
-            {localConfig.dataDrivenSizing.enabled && (
+            {pendingConfig.dataDrivenSizing.enabled && (
               <Stack gap="sm" mt="xs">
                 <Select
                   label="Numeric column"
                   placeholder="Select column"
-                  value={localConfig.dataDrivenSizing.column || null}
+                  value={pendingConfig.dataDrivenSizing.column || null}
                   onChange={(val) => updateSizing({ column: val || '' })}
                   data={numericColumns.map((c) => ({ label: c, value: c }))}
                   size="xs"
@@ -258,7 +247,7 @@ export function GraphConfigPanel() {
                   <SegmentedControl
                     fullWidth
                     size="xs"
-                    value={localConfig.dataDrivenSizing.axis}
+                    value={pendingConfig.dataDrivenSizing.axis}
                     onChange={(val) => updateSizing({ axis: val as 'width' | 'height' })}
                     data={[
                       { label: 'Width', value: 'width' },
@@ -268,7 +257,7 @@ export function GraphConfigPanel() {
                 </div>
                 <NumberInput
                   label="Scale factor (px per unit)"
-                  value={localConfig.dataDrivenSizing.scaleFactor}
+                  value={pendingConfig.dataDrivenSizing.scaleFactor}
                   onChange={(val) => {
                     if (typeof val === 'number') updateSizing({ scaleFactor: val });
                   }}
@@ -279,7 +268,7 @@ export function GraphConfigPanel() {
                 />
                 <NumberInput
                   label="Minimum size (px)"
-                  value={localConfig.dataDrivenSizing.minSize}
+                  value={pendingConfig.dataDrivenSizing.minSize}
                   onChange={(val) => {
                     if (typeof val === 'number') updateSizing({ minSize: val });
                   }}
@@ -307,7 +296,7 @@ export function GraphConfigPanel() {
                   <Text size="xs" fw={500} c="dimmed" mb={4}>{tableName}</Text>
                   <Stack gap={4}>
                     {columns.map((col) => {
-                      const hidden = localConfig.hiddenColumns[tableName]?.includes(col) ?? false;
+                      const hidden = pendingConfig.hiddenColumns[tableName]?.includes(col) ?? false;
                       return (
                         <Checkbox
                           key={col}
@@ -338,7 +327,7 @@ export function GraphConfigPanel() {
           ) : (
             <Stack gap={4}>
               {junctionTableNames.map((jt) => {
-                const excluded = localConfig.excludedEdgeSources.includes(jt);
+                const excluded = pendingConfig.excludedEdgeSources.includes(jt);
                 return (
                   <Checkbox
                     key={jt}
@@ -351,6 +340,25 @@ export function GraphConfigPanel() {
               })}
             </Stack>
           )}
+        </div>
+
+        <Divider />
+
+        {/* Collapse Hierarchy */}
+        <div>
+          <Text fw={600} size="sm" mb="xs">Collapse Hierarchy</Text>
+          <Text size="xs" c="dimmed" mb="xs">
+            Which relationship type defines parent-child for node collapse/expand.
+            Empty = auto-detect composition (*--).
+          </Text>
+          <Select
+            placeholder="Auto-detect (*--)"
+            value={pendingConfig.collapseRelationship || null}
+            onChange={(val) => updatePendingGraphConfig({ collapseRelationship: val || '' })}
+            data={junctionTablesWithTokens}
+            clearable
+            size="xs"
+          />
         </div>
       </Stack>
     </Drawer>
